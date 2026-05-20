@@ -6,14 +6,15 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { offset = 0, limit = 50, search, language, sortBy } = req.query;
+    const { offset = 0, limit = 50, search, language, sortBy, category } = req.query;
     const result = await snippetRepository.getUserSnippets(
       req.user.id,
       parseInt(offset),
       parseInt(limit),
       search || '',
       language || '',
-      sortBy || 'newest'
+      sortBy || 'newest',
+      category || ''
     );
     res.json(result);
   } catch (error) {

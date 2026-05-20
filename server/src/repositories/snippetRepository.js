@@ -54,13 +54,13 @@ const snippetRepository = {
     return snippet;
   },
 
-  async getUserSnippets(userId, offset = 0, limit = 50, search = '', language = '', sortBy = 'newest') {
+  async getUserSnippets(userId, offset = 0, limit = 50, search = '', language = '', sortBy = 'newest', category = '') {
     const db = getDb();
 
     let query = `
       SELECT s.*, u.username,
         (SELECT COUNT(*) FROM fragments WHERE snippet_id = s.id) as fragment_count,
-        (SELECT COUNT(*) FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE sc.snippet_id = s.id) as category_count
+        (SELECT GROUP_CONCAT(c.name, ',') FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE sc.snippet_id = s.id) as categories
       FROM snippets s
       JOIN users u ON s.user_id = u.id
       WHERE s.user_id = ? AND s.expiry_date IS NULL
@@ -75,6 +75,11 @@ const snippetRepository = {
     if (language) {
       query += ' AND s.id IN (SELECT DISTINCT snippet_id FROM fragments WHERE language = ?)';
       params.push(language);
+    }
+
+    if (category) {
+      query += ' AND s.id IN (SELECT sc.snippet_id FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE c.name = ?)';
+      params.push(category);
     }
 
     const sortMap = {

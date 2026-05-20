@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check, RefreshCw, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -55,6 +55,10 @@ export const toolComponents: Record<string, { name: string; component: any }> = 
     'encryption': { name: 'Text Encryption', component: EncryptionTool },
     'mac': { name: 'MAC Address Generator', component: MacTool },
     'subnet': { name: 'Subnet Calculator', component: SubnetTool },
+    'docker': { name: 'Docker Compose Generator', component: DockerTool },
+    'rsa': { name: 'RSA Key Generator', component: RsaTool },
+    'toml': { name: 'TOML Converter', component: TomlTool },
+    'yaml': { name: 'YAML Viewer', component: YamlTool },
 };
 
 export default function ToolViewPage() {
@@ -1664,4 +1668,216 @@ function SubnetTool() {
       )}
     </div>
   );
+}
+
+function DockerTool() {
+  const [image, setImage] = useState('nginx:latest');
+  const [ports, setPorts] = useState('8080:80');
+  const [volumes, setVolumes] = useState('/data:/app/data');
+  const [envs, setEnvs] = useState('NODE_ENV=production');
+  const [name, setName] = useState('my-container');
+  const [restart, setRestart] = useState('unless-stopped');
+  const compose = `version: '3.8'
+services:
+  ${name}:
+    image: ${image}
+    container_name: ${name}
+    restart: ${restart}
+${ports ? `    ports:
+${ports.split(',').map(p => `      - "${p.trim()}"`).join('\n')}
+` : ''}${volumes ? `    volumes:
+${volumes.split(',').map(v => `      - ${v.trim()}
+`).join('')}` : ''}${envs ? `    environment:
+${envs.split(',').map(e => `      - ${e.trim()}
+`).join('')}` : ''}`;
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Image</label><input value={image} onChange={(e) => setImage(e.target.value)} className="input font-mono" placeholder="nginx:latest" /></div>
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Container Name</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="my-container" /></div>
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Ports (comma-sep)</label><input value={ports} onChange={(e) => setPorts(e.target.value)} className="input font-mono" placeholder="8080:80" /></div>
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Volumes (comma-sep)</label><input value={volumes} onChange={(e) => setVolumes(e.target.value)} className="input font-mono" placeholder="/data:/app/data" /></div>
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Env Vars (comma-sep)</label><input value={envs} onChange={(e) => setEnvs(e.target.value)} className="input font-mono" placeholder="NODE_ENV=production" /></div>
+        <div><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Restart Policy</label><select value={restart} onChange={(e) => setRestart(e.target.value)} className="input"><option value="no">no</option><option value="always">always</option><option value="unless-stopped">unless-stopped</option><option value="on-failure">on-failure</option></select></div>
+      </div>
+      <div><div className="flex items-center justify-between"><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">docker-compose.yml</label><CopyButton text={compose} /></div><pre className="rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 p-4 text-sm font-mono text-dark-900 dark:text-dark-100 overflow-x-auto whitespace-pre-wrap">{compose}</pre></div>
+    </div>
+  );
+}
+
+function RsaTool() {
+  const [bits, setBits] = useState(2048);
+  const [keyPair, setKeyPair] = useState<{ pub: string; priv: string } | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const generate = async () => {
+    try {
+      setError('');
+      setLoading(true);
+      const kp = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: bits, publicExponent: new Uint8Array([0x01, 0x00, 0x01]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+      const pubBuf = await crypto.subtle.exportKey('spki', kp.publicKey);
+      const privBuf = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+      setKeyPair({ pub: btoa(String.fromCharCode(...new Uint8Array(pubBuf))), priv: btoa(String.fromCharCode(...new Uint8Array(privBuf))) });
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-dark-700 dark:text-dark-300">Key Size:</label>
+        <select value={bits} onChange={(e) => setBits(parseInt(e.target.value))} className="input w-32">
+          <option value={1024}>1024 bits</option><option value={2048}>2048 bits</option><option value={4096}>4096 bits</option>
+        </select>
+        <button onClick={generate} disabled={loading} className="btn btn-primary"><RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Generate</button>
+      </div>
+      {error && <div className="rounded-lg bg-red-50 dark:bg-red-950/30 px-4 py-2 text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {keyPair && (
+        <div className="space-y-3">
+          <div><label className="mb-1.5 block text-sm font-semibold text-dark-700 dark:text-dark-300">Public Key (Base64)</label><div className="flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-3 py-2"><code className="flex-1 text-xs font-mono text-dark-900 dark:text-dark-100 break-all">{keyPair.pub}</code><CopyButton text={keyPair.pub} /></div></div>
+          <div><label className="mb-1.5 block text-sm font-semibold text-dark-700 dark:text-dark-300">Private Key (Base64)</label><div className="flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-3 py-2"><code className="flex-1 text-xs font-mono text-dark-900 dark:text-dark-100 break-all">{keyPair.priv}</code><CopyButton text={keyPair.priv} /></div></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TomlTool() {
+  const [input, setInput] = useState('');
+  const [mode, setMode] = useState<'toml-json' | 'json-toml'>('toml-json');
+  const [error, setError] = useState('');
+  const output = useMemo(() => {
+    try {
+      if (!input.trim()) return { output: '', error: '' };
+      if (mode === 'toml-json') {
+        const obj: any = {};
+        let currentSection = '';
+        for (const line of input.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
+          if (sectionMatch) { currentSection = sectionMatch[1]; continue; }
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx === -1) continue;
+          const key = (currentSection ? currentSection + '.' : '') + trimmed.substring(0, eqIdx).trim();
+          let val: any = trimmed.substring(eqIdx + 1).trim();
+          if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+          else if (val === 'true') val = true;
+          else if (val === 'false') val = false;
+          else if (!isNaN(Number(val))) val = Number(val);
+          const parts = key.split('.');
+          let target = obj;
+          for (let i = 0; i < parts.length - 1; i++) { if (!target[parts[i]]) target[parts[i]] = {}; target = target[parts[i]]; }
+          target[parts[parts.length - 1]] = val;
+        }
+        return { output: JSON.stringify(obj, null, 2), error: '' };
+      } else {
+        const obj = JSON.parse(input);
+        return { output: jsonToTomlFn(obj), error: '' };
+      }
+    } catch (e: any) { return { output: '', error: e.message }; }
+  }, [input, mode]);
+  return (
+    <div className="mx-auto max-w-4xl space-y-4">
+      <div className="flex gap-2">
+        <button onClick={() => setMode('toml-json')} className={`btn ${mode === 'toml-json' ? 'btn-primary' : 'btn-secondary'}`}>TOML → JSON</button>
+        <button onClick={() => setMode('json-toml')} className={`btn ${mode === 'json-toml' ? 'btn-primary' : 'btn-secondary'}`}>JSON → TOML</button>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Input ({mode === 'toml-json' ? 'TOML' : 'JSON'})</label>
+          <textarea value={input} onChange={(e) => { setInput(e.target.value); setError(''); }} className="input font-mono text-sm resize-none" rows={16} placeholder={mode === 'toml-json' ? '[server]\nhost = "localhost"\nport = 8080' : '{\n  "server": {\n    "host": "localhost"\n  }\n}'} />
+        </div>
+        <div>
+          <div className="flex items-center justify-between"><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Output ({mode === 'toml-json' ? 'JSON' : 'TOML'})</label><CopyButton text={output.output} /></div>
+          {output.error && <div className="mb-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400">{output.error}</div>}
+          <textarea value={output.output} readOnly className="input font-mono text-sm resize-none bg-dark-50 dark:bg-dark-800" rows={16} />
+        </div>
+      </div>
+    </div>
+  );
+}
+function jsonToTomlFn(obj: any, prefix = ''): string {
+  let result = '';
+  const primitives: string[] = [];
+  const objects: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'object' && v !== null) objects.push(k);
+    else {
+      if (typeof v === 'string') primitives.push(`${k} = "${v}"`);
+      else if (typeof v === 'boolean') primitives.push(`${k} = ${v ? 'true' : 'false'}`);
+      else primitives.push(`${k} = ${v}`);
+    }
+  }
+  if (primitives.length) result += primitives.join('\n') + '\n';
+  for (const k of objects) {
+    result += `\n[${prefix}${k}]\n` + jsonToTomlFn(obj[k], prefix + k + '.');
+  }
+  return result;
+}
+
+function YamlTool() {
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+  const output = useMemo(() => {
+    try {
+      if (!input.trim()) return { output: '', error: '' };
+      const obj = simpleYamlParseFn(input);
+      return { output: JSON.stringify(obj, null, 2), error: '' };
+    } catch (e: any) { return { output: '', error: e.message }; }
+  }, [input]);
+  return (
+    <div className="mx-auto max-w-4xl space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">YAML Input</label>
+          <textarea value={input} onChange={(e) => { setInput(e.target.value); setError(''); }} className="input font-mono text-sm resize-none" rows={20} placeholder="server:\n  host: localhost\n  port: 8080\n\nname: my-app" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between"><label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">JSON Output</label><CopyButton text={output.output} /></div>
+          {output.error && <div className="mb-2 rounded-lg bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400">{output.error}</div>}
+          <textarea value={output.output} readOnly className="input font-mono text-sm resize-none bg-dark-50 dark:bg-dark-800" rows={20} />
+        </div>
+      </div>
+    </div>
+  );
+}
+function simpleYamlParseFn(yaml: string): any {
+  const result: any = {};
+  let indentLevel = 0;
+  const stack: { obj: any; indent: number }[] = [];
+  for (const rawLine of yaml.split('\n')) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = rawLine.search(/\S/);
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1) continue;
+    const key = trimmed.substring(0, colonIdx).trim();
+    const val = trimmed.substring(colonIdx + 1).trim();
+    if (indent <= indentLevel && stack.length > 0) {
+      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
+    }
+    if (val === '') {
+      const newObj: any = {};
+      indentLevel = indent;
+      if (stack.length > 0) {
+        stack[stack.length - 1].obj[key] = newObj;
+      } else {
+        result[key] = newObj;
+      }
+      stack.push({ obj: newObj, indent });
+    } else {
+      let parsedVal: any = val;
+      if (val.startsWith('"') && val.endsWith('"')) parsedVal = val.slice(1, -1);
+      else if (val === 'true') parsedVal = true;
+      else if (val === 'false') parsedVal = false;
+      else if (val === 'null') parsedVal = null;
+      else if (!isNaN(Number(parsedVal))) parsedVal = Number(parsedVal);
+      if (stack.length > 0) {
+        stack[stack.length - 1].obj[key] = parsedVal;
+      } else {
+        result[key] = parsedVal;
+      }
+    }
+  }
+  return result;
 }

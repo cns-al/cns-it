@@ -3,7 +3,8 @@ import { api } from '../api/client';
 import {
   Plus, Search, FileCode, Star, Trash2, MoreVertical,
   Copy, ExternalLink, Clock, Tag, ChevronDown, Grid, List,
-  Loader2, FolderOpen, Code2, Check, X, Globe, Lock, Share2, RefreshCw, Eye
+  Loader2, FolderOpen, Code2, Check, X, Globe, Lock, Share2, RefreshCw, Eye,
+  Pin, Heart, ZoomIn, ZoomOut, FolderTree
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -82,21 +83,48 @@ export default function SnippetsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [zoom, setZoom] = useState(() => {
+    try { return parseInt(localStorage.getItem('cnsit_zoom') || '100'); } catch { return 100; }
+  });
 
   useEffect(() => {
     loadSnippets();
+    loadCategories();
   }, [sortBy]);
 
-  const loadSnippets = async () => {
+  useEffect(() => {
+    localStorage.setItem('cnsit_zoom', String(zoom));
+  }, [zoom]);
+
+  const loadSnippets = async (cat?: string) => {
     setLoading(true);
     try {
-      const res = await api.get(`/snippets?sortBy=${sortBy}&search=${encodeURIComponent(search)}`);
+      const category = cat !== undefined ? cat : selectedCategory;
+      let url = `/snippets?sortBy=${sortBy}&search=${encodeURIComponent(search)}`;
+      if (category) url += `&category=${encodeURIComponent(category)}`;
+      const res = await api.get(url);
       const data = await res.json();
-      setSnippets(data.data || []);
+      const parsed = (data.data || []).map((s: any) => ({
+        ...s,
+        categories: s.categories ? s.categories.split(',').filter(Boolean) : [],
+      }));
+      setSnippets(parsed);
     } catch (err) {
       console.error('Failed to load snippets:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/snippets/categories');
+      const data = await res.json();
+      setCategories((data || []).map((c: any) => c.name));
+    } catch (err) {
+      console.error('Failed to load categories:', err);
     }
   };
 
@@ -150,6 +178,20 @@ export default function SnippetsPage() {
           <option value="reverseAlpha">Z-A</option>
         </select>
 
+        {categories.length > 0 && (
+          <div className="relative">
+            <FolderTree className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-400" />
+            <select
+              value={selectedCategory}
+              onChange={(e) => { setSelectedCategory(e.target.value); loadSnippets(e.target.value); }}
+              className="rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 pl-8 pr-3 py-2 text-sm text-dark-700 dark:text-dark-300 focus:border-brand-500 focus:outline-none appearance-none"
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+        )}
+
         <div className="flex items-center rounded-lg border border-dark-200 dark:border-dark-700">
           <button
             onClick={() => setViewMode('grid')}
@@ -164,6 +206,18 @@ export default function SnippetsPage() {
             <List className="h-4 w-4" />
           </button>
         </div>
+
+        {viewMode === 'grid' && (
+          <div className="flex items-center gap-1 rounded-lg border border-dark-200 dark:border-dark-700 px-2">
+            <button onClick={() => setZoom(Math.max(60, zoom - 10))} className="p-1 text-dark-400 hover:text-dark-600 dark:hover:text-dark-300" title="Zoom out">
+              <ZoomOut className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-medium text-dark-500 w-10 text-center">{zoom}%</span>
+            <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1 text-dark-400 hover:text-dark-600 dark:hover:text-dark-300" title="Zoom in">
+              <ZoomIn className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <button
           onClick={() => setShowCreate(true)}
@@ -196,10 +250,12 @@ export default function SnippetsPage() {
             </button>
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {snippets.map((snippet) => (
-              <SnippetCard key={snippet.id} snippet={snippet} timeAgo={timeAgo} onOpen={() => setDetailId(snippet.id)} />
-            ))}
+          <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left', width: `${10000 / zoom}%` }} className="transition-transform duration-200">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {snippets.map((snippet) => (
+                <SnippetCard key={snippet.id} snippet={snippet} timeAgo={timeAgo} onOpen={() => setDetailId(snippet.id)} />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -242,7 +298,8 @@ function SnippetCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: 
           {snippet.title}
         </h3>
         <div className="ml-2 flex shrink-0 items-center gap-1">
-          {snippet.is_pinned && <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
+          {snippet.is_pinned && <Pin className="h-3.5 w-3.5 text-blue-500" />}
+          {snippet.is_favorite && <Heart className="h-3.5 w-3.5 text-red-500 fill-red-500" />}
           {snippet.is_public && (
             <span className="badge badge-green">public</span>
           )}
@@ -282,6 +339,7 @@ function SnippetCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: 
 
 function SnippetListCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: (d: string) => string; onOpen: () => void }) {
   const lang = snippet.fragments?.[0]?.language || '';
+  const cats = snippet.categories || [];
   return (
     <button
       onClick={onOpen}
@@ -291,12 +349,22 @@ function SnippetListCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeA
         <Code2 className="h-4 w-4 text-brand-600 dark:text-brand-400" />
       </div>
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-sm font-medium text-dark-900 dark:text-dark-100">{snippet.title}</h3>
+        <div className="flex items-center gap-2">
+          {snippet.is_pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
+          {snippet.is_favorite && <Heart className="h-3.5 w-3.5 shrink-0 text-red-500 fill-red-500" />}
+          <h3 className="truncate text-sm font-medium text-dark-900 dark:text-dark-100">{snippet.title}</h3>
+        </div>
         {snippet.description && (
           <p className="truncate text-xs text-dark-400">{snippet.description}</p>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {cats.slice(0, 2).map((cat) => (
+          <span key={cat} className="badge badge-brand">
+            <Tag className="mr-0.5 h-3 w-3" />
+            {cat}
+          </span>
+        ))}
         {snippet.is_public && <span className="badge badge-green">public</span>}
         {lang && (
           <span className="badge badge-brand">{lang}</span>
@@ -403,11 +471,11 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
           </div>
           {!loading && snippet && (
             <div className="flex items-center gap-1">
-              <button onClick={togglePin} className={`rounded-lg p-2 ${snippet.is_pinned ? 'text-yellow-500' : 'text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800'}`} title="Pin">
-                <Star className={`h-4 w-4 ${snippet.is_pinned ? 'fill-yellow-500' : ''}`} />
+              <button onClick={togglePin} className={`rounded-lg p-2 ${snippet.is_pinned ? 'text-blue-500' : 'text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800'}`} title="Pin">
+                <Pin className={`h-4 w-4 ${snippet.is_pinned ? 'fill-blue-500' : ''}`} />
               </button>
               <button onClick={toggleFavorite} className={`rounded-lg p-2 ${snippet.is_favorite ? 'text-red-500' : 'text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800'}`} title="Favorite">
-                <Star className={`h-4 w-4 ${snippet.is_favorite ? 'fill-red-500' : ''}`} />
+                <Heart className={`h-4 w-4 ${snippet.is_favorite ? 'fill-red-500' : ''}`} />
               </button>
               <button onClick={togglePublic} className={`rounded-lg p-2 ${snippet.is_public ? 'text-green-500' : 'text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800'}`} title={snippet.is_public ? 'Public' : 'Private'}>
                 {snippet.is_public ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
@@ -497,7 +565,32 @@ function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [description, setDescription] = useState('');
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
+  const [categoryInput, setCategoryInput] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/snippets/categories');
+        const data = await res.json();
+        setCategories((data || []).map((c: any) => c.name));
+      } catch (err) { console.error('Failed to load categories:', err); }
+    })();
+  }, []);
+
+  const addCategory = () => {
+    const cat = categoryInput.trim();
+    if (cat && !selectedCats.includes(cat)) {
+      setSelectedCats([...selectedCats, cat]);
+      setCategoryInput('');
+    }
+  };
+
+  const removeCategory = (cat: string) => {
+    setSelectedCats(selectedCats.filter(c => c !== cat));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -507,6 +600,7 @@ function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         title,
         description,
         fragments: [{ name: 'main', code, language }],
+        categories: selectedCats,
       });
       if (!res.ok) throw new Error('Failed to create snippet');
       onSuccess();
@@ -552,6 +646,43 @@ function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <div>
             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Language</label>
             <LanguageSearch value={language} onChange={setLanguage} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Categories</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={categoryInput}
+                  onChange={(e) => setCategoryInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+                  className="input pr-8"
+                  placeholder="Type category name..."
+                  list="cat-suggestions"
+                />
+                {categoryInput && (
+                  <button type="button" onClick={addCategory} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-600 hover:text-brand-700">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                <datalist id="cat-suggestions">
+                  {categories.filter(c => !selectedCats.includes(c)).map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+            </div>
+            {selectedCats.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectedCats.map(cat => (
+                  <span key={cat} className="flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-950/30 px-2.5 py-1 text-xs font-medium text-brand-700 dark:text-brand-400">
+                    <Tag className="h-3 w-3" />
+                    {cat}
+                    <button type="button" onClick={() => removeCategory(cat)} className="ml-0.5 text-brand-400 hover:text-brand-600">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Code</label>
