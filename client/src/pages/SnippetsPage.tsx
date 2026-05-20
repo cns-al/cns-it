@@ -1,11 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import {
   Plus, Search, FileCode, Star, Trash2, MoreVertical,
   Copy, ExternalLink, Clock, Tag, ChevronDown, Grid, List,
-  Loader2, FolderOpen, Code2
+  Loader2, FolderOpen, Code2, Check, X
 } from 'lucide-react';
+
+const LANGUAGES = [
+  'abap', 'actionscript', 'ada', 'agda', 'al', 'antlr', 'apacheconf', 'apex', 'apl', 'applescript',
+  'ara', 'asm', 'astro', 'awk', 'bash', 'basic', 'batch', 'beancount', 'berry', 'bibtex',
+  'binary', 'bicep', 'birb', 'blade', 'brainfuck', 'brightscript', 'bro', 'c', 'cadence', 'cfc',
+  'cfscript', 'chaiscript', 'cil', 'clarity', 'clojure', 'cmake', 'cobol', 'codeql', 'coffee',
+  'cpp', 'crystal', 'csharp', 'cshtml', 'csp', 'css', 'csv', 'cue', 'cypher', 'd', 'dart',
+  'dax', 'dhall', 'diff', 'django', 'dns', 'docker', 'dot', 'ebnf', 'editorconfig', 'eiffel',
+  'ejs', 'elixir', 'elm', 'elvish', 'erb', 'erlang', 'excel-formula', 'factor', 'false', 'fortran',
+  'fsharp', 'ftl', 'gap', 'gcode', 'gdscript', 'gedcom', 'gherkin', 'git', 'glsl', 'gnuplot',
+  'go', 'go-module', 'graphql', 'groovy', 'haml', 'handlebars', 'haskell', 'hcl', 'hjson',
+  'hlsl', 'hocon', 'html', 'http', 'hxml', 'icon', 'idris', 'ignore', 'inform7', 'ini', 'io',
+  'janet', 'java', 'javascript', 'jexl', 'jinja', 'jolie', 'jq', 'js-extras', 'jsdoc', 'json',
+  'json5', 'jsonc', 'jsonp', 'jspl', 'jsonnet', 'jssm', 'julia', 'keepalived', 'kotlin', 'kumir',
+  'kusto', 'latex', 'latte', 'less', 'liquid', 'lisp', 'livescript', 'llvm', 'log', 'logtalk',
+  'lolcode', 'lua', 'magma', 'makefile', 'markdown', 'marko', 'matlab', 'maxscript', 'melt',
+  'mermaid', 'mizar', 'mongodb', 'monkey', 'moonscript', 'n1ql', 'n4js', 'nand2tetris-hdl',
+  'nasm', 'neon', 'nginx', 'nim', 'nix', 'nsis', 'objectivec', 'ocaml', 'opencl', 'openqasm',
+  'oz', 'pascal', 'psl', 'pcaxis', 'peoplecode', 'perl', 'php', 'php-extra', 'plsql', 'powerquery',
+  'powershell', 'processing', 'prolog', 'promql', 'properties', 'protobuf', 'prql', 'pug', 'puppet',
+  'pure', 'purebasic', 'purescript', 'python', 'q', 'qml', 'qore', 'qsharp', 'r', 'racket',
+  'cs', 'regex', 'rego', 'renpy', 'rel', 'rmarkdown', 'robotframework', 'ruby', 'rust', 'sas',
+  'sass', 'scala', 'scheme', 'scss', 'shell-session', 'smali', 'smalltalk', 'smarty', 'sml',
+  'solidity', 'solution-file', 'soy', 'sparql', 'splunk', 'sqf', 'sql', 'squirrel', 'stan',
+  'stata', 'iecst', 'stylus', 'supercollider', 'swift', 'systemd', 'tcl', 'textile', 'thrift',
+  'ti', 'tla', 'toml', 'tremor', 'tsx', 'tt2', 'turtle', 'twig', 'typescript', 'uniroyal',
+  'v', 'vbs', 'velocity', 'verilog', 'vhdl', 'vim', 'visual-basic', 'warpscript', 'wasm',
+  'web-idl', 'wgsl', 'wiki', 'wolfram', 'wren', 'xeora', 'xml', 'xojo', 'xquery', 'yaml',
+  'yang', 'zig'
+];
 
 interface Snippet {
   id: number;
@@ -15,8 +45,9 @@ interface Snippet {
   is_public: number;
   is_pinned: number;
   is_favorite: number;
-  categories: string[];
-  fragments: { file_name: string; language: string; code: string }[];
+  fragment_count?: number;
+  categories?: string[];
+  fragments?: { file_name: string; language: string; code: string }[];
 }
 
 export default function SnippetsPage() {
@@ -161,7 +192,9 @@ export default function SnippetsPage() {
 }
 
 function SnippetCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: string) => string }) {
-  const lang = snippet.fragments[0]?.language || '';
+  const lang = snippet.fragments?.[0]?.language || '';
+  const cats = snippet.categories || [];
+  const fragCount = snippet.fragments?.length || snippet.fragment_count || 0;
   const langColor: Record<string, string> = {
     javascript: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
     typescript: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
@@ -198,7 +231,7 @@ function SnippetCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: stri
             {lang}
           </span>
         )}
-        {snippet.categories.map((cat) => (
+        {cats.map((cat) => (
           <span key={cat} className="badge badge-brand">
             <Tag className="mr-0.5 h-3 w-3" />
             {cat}
@@ -212,7 +245,7 @@ function SnippetCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: stri
           {timeAgo(snippet.updated_at)}
         </span>
         <span className="text-xs text-dark-400">
-          {snippet.fragments.length} file{snippet.fragments.length > 1 ? 's' : ''}
+          {fragCount} file{fragCount > 1 ? 's' : ''}
         </span>
       </div>
     </Link>
@@ -220,6 +253,7 @@ function SnippetCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: stri
 }
 
 function SnippetListCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: string) => string }) {
+  const lang = snippet.fragments?.[0]?.language || '';
   return (
     <Link
       to={`/snippets/${snippet.id}`}
@@ -236,8 +270,8 @@ function SnippetListCard({ snippet, timeAgo }: { snippet: Snippet; timeAgo: (d: 
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {snippet.is_public && <span className="badge badge-green">public</span>}
-        {snippet.fragments[0]?.language && (
-          <span className="badge badge-brand">{snippet.fragments[0].language}</span>
+        {lang && (
+          <span className="badge badge-brand">{lang}</span>
         )}
         <span className="text-xs text-dark-400">{timeAgo(snippet.updated_at)}</span>
       </div>
@@ -304,15 +338,7 @@ function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Language</label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="input"
-            >
-              {['javascript', 'typescript', 'python', 'html', 'css', 'json', 'bash', 'sql', 'go', 'rust', 'java', 'c', 'cpp', 'ruby', 'php', 'yaml', 'markdown', 'dockerfile', 'toml', 'xml'].map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
+            <LanguageSearch value={language} onChange={setLanguage} />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Code</label>
@@ -336,6 +362,83 @@ function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function LanguageSearch({ value, onChange }: { value: string; onChange: (l: string) => void }) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useCallback(() => {
+    if (!query) return LANGUAGES;
+    const q = query.toLowerCase();
+    return LANGUAGES.filter(l => l.toLowerCase().includes(q));
+  }, [query]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  const select = (lang: string) => {
+    onChange(lang);
+    setQuery(lang);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur(); }
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-3 py-2 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
+        <Search className="mr-2 h-4 w-4 shrink-0 text-dark-400" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search language..."
+          className="flex-1 bg-transparent text-sm text-dark-900 dark:text-dark-100 placeholder-dark-400 outline-none"
+        />
+        {query && (
+          <button type="button" onClick={() => { setQuery(''); setOpen(false); }} className="ml-1 rounded p-0.5 text-dark-400 hover:text-dark-600 dark:hover:text-dark-300">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-lg">
+          {filtered().length === 0 ? (
+            <div className="px-3 py-2 text-xs text-dark-400">No languages found</div>
+          ) : (
+            filtered().map(lang => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => select(lang)}
+                className={`flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-dark-100 dark:hover:bg-dark-800 ${lang === value ? 'bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-400' : 'text-dark-700 dark:text-dark-300'}`}
+              >
+                <span className="capitalize">{lang}</span>
+                {lang === value && <Check className="h-3.5 w-3.5" />}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

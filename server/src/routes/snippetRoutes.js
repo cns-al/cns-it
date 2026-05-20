@@ -32,6 +32,37 @@ router.get('/categories', async (req, res) => {
   }
 });
 
+router.get('/recycle', async (req, res) => {
+  try {
+    const { offset = 0, limit = 50 } = req.query;
+    const snippets = await snippetRepository.getRecycleBin(req.user.id, parseInt(offset), parseInt(limit));
+    res.json(snippets);
+  } catch (error) {
+    Logger.error('Get recycle bin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/recycle/:id/restore', async (req, res) => {
+  try {
+    await snippetRepository.restore(req.params.id, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    Logger.error('Restore snippet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/recycle/:id', async (req, res) => {
+  try {
+    await snippetRepository.permanentDelete(req.params.id, req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    Logger.error('Permanent delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const snippet = await snippetRepository.findById(req.params.id, req.user.id);
@@ -95,37 +126,6 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     Logger.error('Delete snippet error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.get('/recycle', async (req, res) => {
-  try {
-    const { offset = 0, limit = 50 } = req.query;
-    const snippets = await snippetRepository.getRecycleBin(req.user.id, parseInt(offset), parseInt(limit));
-    res.json(snippets);
-  } catch (error) {
-    Logger.error('Get recycle bin error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/recycle/:id/restore', async (req, res) => {
-  try {
-    await snippetRepository.restore(req.params.id, req.user.id);
-    res.json({ success: true });
-  } catch (error) {
-    Logger.error('Restore snippet error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.delete('/recycle/:id', async (req, res) => {
-  try {
-    await snippetRepository.permanentDelete(req.params.id, req.user.id);
-    res.json({ success: true });
-  } catch (error) {
-    Logger.error('Permanent delete error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -33,8 +33,10 @@ RUN chown -R cnsit:nodejs /app
 ENV DATA_DIR=/data
 RUN mkdir -p /data && chown cnsit:nodejs /data
 
-USER cnsit
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 5000
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "server/src/app.js"]
