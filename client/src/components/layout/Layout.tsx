@@ -6,7 +6,7 @@ import type { Theme } from '../../contexts/ThemeContext';
 import {
   Code2, Wrench, Settings, Trash2, LogOut, Menu, X,
   Sun, Moon, Monitor, FolderOpen, Shield, ChevronDown,
-  Search, Command, LayoutGrid
+  Search, Command, LayoutGrid, Image as ImageIcon
 } from 'lucide-react';
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
     { icon: LayoutGrid, label: 'Dashboard', path: '/' },
     { icon: FolderOpen, label: 'Snippets', path: '/snippets' },
     { icon: Wrench, label: 'Dev Tools', path: '/tools' },
+    { icon: ImageIcon, label: 'Diagram', path: '/diagram' },
   ]},
   { group: 'Other', items: [
     { icon: Trash2, label: 'Recycle Bin', path: '/recycle' },
