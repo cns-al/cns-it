@@ -3,11 +3,11 @@ import {
   X, Download, Upload, Trash2, Save, Plus,
   ZoomIn, ZoomOut, Maximize2, Minimize2, Eye,
   Loader2, Copy, AlertCircle, Image as ImageIcon,
-  FileText, Code2, ChevronDown
+  FileText, Code2, ChevronDown, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const DRAWIO_URL = 'https://embed.diagrams.net/?proto=json&db=0&odp=0&nav=1&math=0&highlight=0&noembed=1&nopane=0&noSaveBtn=0&noExitBtn=0&configure=1';
+const DRAWIO_URL = 'https://app.diagrams.net/?proto=json&db=0&odp=0&configure=1&dark=0&ui=atlas&spin=1&p=0&noembed=0';
 
 function downloadFile(content: string, filename: string) {
   const blob = new Blob([content], { type: 'application/octet-stream' });
@@ -40,43 +40,26 @@ export default function DiagramPage() {
   const [diagramTitle, setDiagramTitle] = useState('Untitled Diagram');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const savedDiagrams = useRef<Record<string, { xml: string; title: string; savedAt: string }>>({});
+  const [savedDiagrams] = useState<Record<string, { xml: string; title: string; savedAt: string }>>({});
 
-  // Listen for messages from draw.io iframe
   const handleMessage = useCallback((event: MessageEvent) => {
     if (!event.data || typeof event.data !== 'string') return;
-
     let msg: DiagramMessage;
     try {
       msg = JSON.parse(event.data);
     } catch {
       return;
     }
-
     switch (msg.action) {
       case 'ready':
         setLoading(false);
         setError(null);
         break;
-
       case 'autosave':
         setHasUnsaved(true);
-        if (msg.xml) {
-          savedDiagrams.current[currentDiagramKey] = {
-            xml: msg.xml,
-            title: diagramTitle,
-            savedAt: new Date().toISOString()
-          };
-        }
-        break;
-
-      case 'export':
-        if (msg.file) {
-          downloadFile(msg.file, msg.xml ? 'diagram.drawio' : 'diagram.xml');
-        }
         break;
     }
-  }, [diagramTitle]);
+  }, []);
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
@@ -90,9 +73,7 @@ export default function DiagramPage() {
   };
 
   const handleNewDiagram = () => {
-    if (hasUnsaved) {
-      if (!confirm('Create new diagram? Unsaved changes will be lost.')) return;
-    }
+    if (hasUnsaved && !confirm('Create new diagram? Unsaved changes will be lost.')) return;
     sendMessage({ action: 'new' });
     setHasUnsaved(false);
     setDiagramTitle('Untitled Diagram');
@@ -106,22 +87,13 @@ export default function DiagramPage() {
 
   const handleExport = (format: ExportFormat) => {
     setShowExport(false);
-    const exportMap: Record<ExportFormat, string> = {
-      png: 'png',
-      jpg: 'jpg',
-      svg: 'svg',
-      pdf: 'pdf',
-      xml: 'xml',
-      json: 'json'
-    };
-    sendMessage({ action: 'export', format: exportMap[format], spinTitle: 'Exporting...' });
+    sendMessage({ action: 'export', format, spinTitle: 'Exporting...' });
     toast.success(`Exporting as ${format.toUpperCase()}...`);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (ev) => {
       const content = ev.target?.result as string;
@@ -135,7 +107,7 @@ export default function DiagramPage() {
 
   const handleCopyDiagram = () => {
     sendMessage({ action: 'export', format: 'xml' });
-    toast.success('Copy diagram data');
+    toast.success('Diagram data exported');
   };
 
   const handleClear = () => {
@@ -149,8 +121,6 @@ export default function DiagramPage() {
   const handleZoomIn = () => sendMessage({ action: 'zoom', value: 1.2 });
   const handleZoomOut = () => sendMessage({ action: 'zoom', value: 0.8 });
 
-  const currentDiagramKey = 'current';
-
   const exportFormats: { id: ExportFormat; label: string; icon: typeof ImageIcon }[] = [
     { id: 'png', label: 'PNG Image', icon: ImageIcon },
     { id: 'jpg', label: 'JPG Image', icon: ImageIcon },
@@ -162,7 +132,7 @@ export default function DiagramPage() {
 
   return (
     <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-[60] bg-dark-50 dark:bg-dark-950' : 'h-full'}`}>
-      {/* Header */}
+      {/* Header Toolbar */}
       <div className="flex items-center gap-2 border-b border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 px-4 py-2 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <ImageIcon className="h-4 w-4" />
@@ -190,7 +160,7 @@ export default function DiagramPage() {
             </button>
           )}
           {hasUnsaved && (
-            <span className="flex h-2 w-2 shrink-0">
+            <span className="relative inline-flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-yellow-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
             </span>
@@ -199,15 +169,10 @@ export default function DiagramPage() {
 
         <div className="flex-1" />
 
-        {/* Toolbar */}
+        {/* Toolbar Buttons */}
         <div className="flex items-center gap-1">
-          {/* New */}
-          <ToolbarButton icon={Plus} label="New" onClick={handleNewDiagram} />
-
-          {/* Import */}
-          <ToolbarButton icon={Upload} label="Import" onClick={() => setShowImport(true)} />
-
-          {/* Save */}
+          <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
+          <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
           <ToolbarButton icon={Save} label="Save" onClick={handleSave} />
 
           {/* Export Dropdown */}
@@ -229,14 +194,17 @@ export default function DiagramPage() {
             )}
           </div>
 
-          {/* Zoom */}
+          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
           <ToolbarButton icon={ZoomOut} label="Zoom Out" onClick={handleZoomOut} />
           <ToolbarButton icon={ZoomIn} label="Zoom In" onClick={handleZoomIn} />
 
-          {/* Clear */}
+          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
           <ToolbarButton icon={Trash2} label="Clear" onClick={handleClear} variant="danger" />
 
-          {/* Fullscreen */}
+          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
           <ToolbarButton
             icon={isFullscreen ? Minimize2 : Maximize2}
             label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
@@ -248,7 +216,7 @@ export default function DiagramPage() {
             <button
               onClick={() => setShowMenu(!showMenu)}
               className="rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
-              title="Menu"
+              title="More Options"
             >
               <ChevronDown className="h-4 w-4" />
             </button>
@@ -275,18 +243,17 @@ export default function DiagramPage() {
                 >
                   <Eye className="h-4 w-4" /> Shape Library
                 </a>
+                <a
+                  href="https://www.drawio.com/doc/faq/custom-shapes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
+                >
+                  <PanelLeftOpen className="h-4 w-4" /> Custom Shapes
+                </a>
               </div>
             )}
           </div>
-
-          {!isFullscreen && (
-            <button
-              onClick={() => {}}
-              className="rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 ml-1"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -296,7 +263,7 @@ export default function DiagramPage() {
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-dark-50 dark:bg-dark-950">
             <Loader2 className="h-8 w-8 animate-spin text-brand-600 mb-4" />
             <p className="text-sm text-dark-500">Loading Diagram Editor...</p>
-            <p className="text-xs text-dark-400 mt-1">Powered by draw.io</p>
+            <p className="text-xs text-dark-400 mt-1">Full-featured editor with all shapes & libraries</p>
           </div>
         )}
 
