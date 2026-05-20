@@ -1,4 +1,4 @@
-# Build stage
+# Build stage - only build server dependencies (client is pre-built)
 FROM node:20-slim AS build
 
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
@@ -7,15 +7,11 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY server/package*.json ./server/
-COPY client/package*.json ./client/
 
 RUN npm ci
 RUN cd server && npm ci
-RUN cd client && npm install --no-audit --no-fund && ls -la node_modules/.bin/tsc
 
-COPY . .
-
-RUN cd client && npm run build
+COPY server/src ./server/src
 
 # Production stage
 FROM node:20-slim AS production
@@ -28,7 +24,8 @@ COPY --from=build /app/server/package*.json ./server/
 RUN cd server && npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/server/src ./server/src
-COPY --from=build /app/client/build ./client/build
+# Copy pre-built client from build context (built locally before docker build)
+COPY client/build ./client/build
 
 RUN chown -R cnsit:nodejs /app
 
