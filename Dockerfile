@@ -1,10 +1,7 @@
-# Build stage - pinned image for reproducible builds
+# Build stage
 FROM node:20-bookworm-slim AS build
 
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-
-# Fix "Exit handler never called!" npm bug
-RUN npm install -g npm@10.9.2
 
 WORKDIR /app
 
