@@ -7,9 +7,9 @@ if [ -z "$JWT_SECRET" ]; then
   exit 1
 fi
 
-# Fix /data directory permissions (volume mount overrides image's /data, may be owned by root)
+# Ensure /data directory exists (volume mount may override ownership)
 mkdir -p /data
-chown -R cnsit:nodejs /data
+chmod 755 /data
 
-# Drop to non-root user and exec the app
-exec su -s /bin/sh cnsit -c "cd /app && exec node server/src/app.js"
+# Start the application
+exec node server/src/app.js

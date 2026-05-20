@@ -7,9 +7,10 @@ data/snippets.db-shm
 data/snippets.db-wal
 data/snippets.db.backup.db
 
-# Build output (client/build is committed for Docker builds on low-memory VMs)
+# Build output
 dist/
 build/
+client/build/
 
 # Environment
 .env
