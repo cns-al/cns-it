@@ -24,23 +24,28 @@ const DRAWIO_PORT = process.env.DRAWIO_PORT || 8080;
 // CSS to rebrand draw.io (injected into HTML responses, may be removed by draw.io JS)
 // Actual branding is handled by DiagramPage.tsx injecting CSS into the iframe
 const CNS_DRAWIO_CSS = `
-<style>
-  .geLogo, .geLogoLink, .geLogoImg, .geLogoSvg,
-  img[src*="logo"], img[src*="drawio"],
-  .geFooter, .geFooterLink,
-  .geSplash, .geSplashLogo,
-  .geSplash h1, .geSplash p,
-  h1.geTitle, .geTitle,
-  #geInfo h1, #geInfo p:first-of-type,
-  a[href*="drawio.com"], a[href*="diagrams.net"],
-  a[href*="github.com/jgraph"],
-  .geFooter a, [class*="Footer"] a,
-  .geAbout, .geAboutDialog,
-  .geTopToolbar > div:first-child { display: none !important; }
-  .geToolbar, .geTopToolbar { background: #ffffff !important; border-bottom: 1px solid #e5e7eb !important; }
-  .geBtn, .gePrimaryBtn { background: #2563eb !important; border-color: #2563eb !important; }
-</style>
-`;
+ <style>
+   .geLogo, .geLogoLink, .geLogoImg, .geLogoSvg,
+   img[src*="logo"], img[src*="drawio"],
+   .geFooter, .geFooterLink,
+   .geSplash, .geSplashLogo,
+   .geSplash h1, .geSplash p,
+   h1.geTitle, .geTitle,
+   #geInfo h1, #geInfo p:first-of-type,
+   a[href*="drawio.com"], a[href*="diagrams.net"],
+   a[href*="github.com/jgraph"],
+   .geFooter a, [class*="Footer"] a,
+   .geAbout, .geAboutDialog,
+   .geTopToolbar > div:first-child,
+   /* Hide Help menu and its dropdown */
+   .geMenubar > div:last-child,
+   .geMenubar > span:last-child,
+   [id^="geHelp"],
+   .geHelpMenu { display: none !important; }
+   .geToolbar, .geTopToolbar { background: #ffffff !important; border-bottom: 1px solid #e5e7eb !important; }
+   .geBtn, .gePrimaryBtn { background: #2563eb !important; border-color: #2563eb !important; }
+ </style>
+ `;
 
 // Simple HTTP proxy for draw.io with HTML rebranding
 function proxyDrawio(req, res) {

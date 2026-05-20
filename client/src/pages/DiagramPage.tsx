@@ -5,7 +5,7 @@ import {
   ZoomIn, ZoomOut, Maximize2, Minimize2, Eye,
   Loader2, Copy, AlertCircle, Image as ImageIcon,
   FileText, Code2, ChevronDown, PanelLeftClose, PanelLeftOpen,
-  FolderOpen, Clock, Search, ExternalLink, HardDrive
+  FolderOpen, Clock, Search, ExternalLink, HardDrive, Shapes, Puzzle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
@@ -58,6 +58,7 @@ export default function DiagramPage() {
   const [diagramsLoading, setDiagramsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showShapeImport, setShowShapeImport] = useState(false);
 
   // Load saved diagrams list
   const loadDiagrams = useCallback(async () => {
@@ -248,11 +249,28 @@ export default function DiagramPage() {
           a[href*="github.com/jgraph"],
           .geFooter a, [class*="Footer"] a,
           .geAbout, .geAboutDialog,
-          .geTopToolbar > div:first-child { display: none !important; }
+          .geTopToolbar > div:first-child,
+          /* Hide Help menu and its dropdown */
+          .geMenubar > div:last-child,
+          .geMenubar > span:last-child,
+          [id^="geHelp"],
+          .geHelpMenu { display: none !important; }
           .geToolbar, .geTopToolbar { background: #ffffff !important; border-bottom: 1px solid #e5e7eb !important; }
           .geBtn, .gePrimaryBtn { background: #2563eb !important; border-color: #2563eb !important; }
         `;
         doc.head.appendChild(style);
+      }
+      // Remove Help menu from DOM
+      const menubar = doc.querySelector('.geMenubar');
+      if (menubar) {
+        const children = Array.from(menubar.children);
+        const helpMenu = children.find((child: Element) => {
+          const text = child.textContent?.trim();
+          return text === 'Help';
+        });
+        if (helpMenu) {
+          helpMenu.remove();
+        }
       }
       doc.title = 'CNS IT — Diagram Editor';
     };
@@ -296,6 +314,21 @@ export default function DiagramPage() {
       setCurrentDiagramId(null);
       setDiagramTitle(file.name.replace(/\.[^.]+$/, ''));
       toast.success('Diagram imported');
+    };
+    reader.readAsText(file);
+  };
+
+  // Import custom shapes
+  const handleShapeImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      // Load custom shapes into draw.io
+      sendMessage({ action: 'load', xml: content, mod: 0, fo: 0 });
+      setShowShapeImport(false);
+      toast.success('Custom shapes imported');
     };
     reader.readAsText(file);
   };
@@ -480,6 +513,7 @@ export default function DiagramPage() {
           <div className="flex items-center gap-1">
             <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
             <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
+            <ToolbarButton icon={Shapes} label="Import Custom Shapes" onClick={() => setShowShapeImport(true)} />
             <ToolbarButton
               icon={Save}
               label="Save to CNS IT"
@@ -626,6 +660,38 @@ export default function DiagramPage() {
                 </div>
                 <input type="file" accept=".drawio,.xml,.dio" onChange={handleImport} className="hidden" />
               </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Shapes Import Modal */}
+      {showShapeImport && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowShapeImport(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-dark-900 dark:text-dark-100 flex items-center gap-2">
+                <Shapes className="h-5 w-5 text-brand-600" />
+                Import Custom Shapes
+              </h3>
+              <button onClick={() => setShowShapeImport(false)} className="rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-dark-200 dark:border-dark-700 p-8 cursor-pointer hover:border-brand-300 dark:hover:border-brand-700 transition-colors">
+                <Puzzle className="h-8 w-8 text-dark-300 dark:text-dark-600" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-dark-700 dark:text-dark-300">Drop shape library file here</p>
+                  <p className="text-xs text-dark-400 mt-1">.xml shape libraries, .svg shapes</p>
+                </div>
+                <input type="file" accept=".xml,.svg" onChange={handleShapeImport} className="hidden" />
+              </label>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>Tip:</strong> Custom shapes can be imported from draw.io shape libraries or custom XML shape definitions.
+                </p>
+              </div>
             </div>
           </div>
         </div>
