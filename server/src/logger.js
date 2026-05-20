@@ -1,22 +1,26 @@
 class Logger {
+  static timestamp() {
+    return new Date().toISOString();
+  }
+
   static info(...args) {
     if (process.env.DEBUG === 'true') {
-      console.log('[INFO]', ...args);
+      console.log(`[${this.timestamp()}] [INFO]`, ...args);
     }
   }
 
   static debug(...args) {
     if (process.env.DEBUG === 'true') {
-      console.log('[DEBUG]', ...args);
+      console.log(`[${this.timestamp()}] [DEBUG]`, ...args);
     }
   }
 
   static error(...args) {
-    console.error('[ERROR]', ...args);
+    console.error(`[${this.timestamp()}] [ERROR]`, ...args);
   }
 
   static warn(...args) {
-    console.warn('[WARN]', ...args);
+    console.warn(`[${this.timestamp()}] [WARN]`, ...args);
   }
 }
 

@@ -4,11 +4,15 @@ import jwt from 'jsonwebtoken';
 import { getDb } from '../config/database.js';
 import userRepository from '../repositories/userRepository.js';
 import { JWT_SECRET, TOKEN_EXPIRY, ALLOW_NEW_ACCOUNTS, DISABLE_ACCOUNTS, DISABLE_INTERNAL_ACCOUNTS } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import Logger from '../logger.js';
 
 const router = express.Router();
 
-router.post('/login', async (req, res) => {
+const loginLimiter = rateLimit({ max: 5, windowMs: 15 * 60 * 1000, message: 'Too many login attempts, please try again later' });
+const registerLimiter = rateLimit({ max: 3, windowMs: 15 * 60 * 1000, message: 'Too many registration attempts, please try again later' });
+
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -51,7 +55,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     if (!ALLOW_NEW_ACCOUNTS && !(await userRepository.count()) === 0) {
       return res.status(403).json({ error: 'Registration is disabled' });

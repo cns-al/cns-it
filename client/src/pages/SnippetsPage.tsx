@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import {
   Plus, Search, FileCode, Star, Trash2, MoreVertical,
@@ -76,6 +77,7 @@ interface SnippetDetail {
 }
 
 export default function SnippetsPage() {
+  const location = useLocation();
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -92,7 +94,22 @@ export default function SnippetsPage() {
   useEffect(() => {
     loadSnippets();
     loadCategories();
-  }, [sortBy]);
+  }, [sortBy, selectedCategory]);
+
+  // Handle create action from dashboard navigation
+  useEffect(() => {
+    if (location.state?.action === 'create') {
+      setShowCreate(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!search) { loadSnippets(); return; }
+    const timer = setTimeout(() => loadSnippets(), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     localStorage.setItem('cnsit_zoom', String(zoom));
@@ -128,11 +145,6 @@ export default function SnippetsPage() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    loadSnippets();
-  };
-
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
@@ -156,7 +168,7 @@ export default function SnippetsPage() {
           <p className="text-xs text-dark-400">{snippets.length} snippets</p>
         </div>
 
-        <form onSubmit={handleSearch} className="relative">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-400" />
           <input
             type="text"
@@ -165,7 +177,7 @@ export default function SnippetsPage() {
             placeholder="Search snippets..."
             className="w-64 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 pl-9 pr-3 py-2 text-sm text-dark-900 dark:text-dark-100 placeholder-dark-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
-        </form>
+        </div>
 
         <select
           value={sortBy}

@@ -1,8 +1,31 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Database
 data/snippets.db
+data/snippets.db-shm
+data/snippets.db-wal
 data/snippets.db.backup.db
-.DS_Store
-*.log
-dist
-build
+
+# Build output
+dist/
+build/
+client/build/
+
+# Environment
 .env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

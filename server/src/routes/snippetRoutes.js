@@ -85,6 +85,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Title and at least one fragment required' });
     }
 
+    if (title.length > 200) {
+      return res.status(400).json({ error: 'Title must be 200 characters or less' });
+    }
+
+    if (description && description.length > 5000) {
+      return res.status(400).json({ error: 'Description must be 5000 characters or less' });
+    }
+
+    for (const frag of fragments) {
+      if (frag.code.length > 100000) {
+        return res.status(400).json({ error: 'Each fragment must be 100KB or less' });
+      }
+    }
+
     const snippet = await snippetRepository.create(
       title,
       description || '',
