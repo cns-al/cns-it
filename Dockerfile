@@ -9,7 +9,7 @@ COPY package*.json ./
 COPY server/package*.json ./server/
 COPY client/package*.json ./client/
 
-RUN npm ci
+RUN npm ci && cd server && npm ci && cd ../client && npm ci && cd ..
 
 COPY . .
 
