@@ -13,7 +13,7 @@ RUN npm ci && cd server && npm ci && cd ../client && npm ci && cd ..
 
 COPY . .
 
-RUN npm run build
+RUN cd client && npm run build && cd ..
 
 # Production stage
 FROM node:20-slim AS production
