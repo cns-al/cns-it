@@ -91,6 +91,22 @@ router.post('/register', registerLimiter, async (req, res) => {
 
     if (isFirstUser) {
       await userRepository.makeAdmin(user.id);
+      // Re-fetch user after makeAdmin so JWT has correct isAdmin flag
+      const adminUser = await userRepository.findById(user.id);
+      const token = jwt.sign(
+        { id: adminUser.id, username: adminUser.username, isAdmin: adminUser.is_admin === 1 },
+        JWT_SECRET,
+        { expiresIn: TOKEN_EXPIRY }
+      );
+      return res.status(201).json({
+        token,
+        user: {
+          id: adminUser.id,
+          username: adminUser.username,
+          isAdmin: adminUser.is_admin === 1
+        },
+        message: 'Registration successful. You are the first admin.'
+      });
     }
 
     if (!isFirstUser) {
@@ -99,22 +115,6 @@ router.post('/register', registerLimiter, async (req, res) => {
         pending: true
       });
     }
-
-    const token = jwt.sign(
-      { id: user.id, username: user.username, isAdmin: user.is_admin === 1 },
-      JWT_SECRET,
-      { expiresIn: TOKEN_EXPIRY }
-    );
-
-    res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        isAdmin: user.is_admin === 1
-      },
-      message: 'Registration successful. You are the first admin.'
-    });
   } catch (error) {
     Logger.error('Registration error:', error);
     res.status(500).json({ error: 'Internal server error' });

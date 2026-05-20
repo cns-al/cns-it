@@ -37,7 +37,7 @@ app.use(
   authenticateToken,
   snippetRoutes
 );
-app.use(`${basePath}/api/share`, shareRoutes);
+app.use(`${basePath}/api/share`, authenticateToken, shareRoutes);
 app.use(`${basePath}/api/public/snippets`, publicRoutes);
 app.use(`${basePath}/api/admin`, authenticateToken, requireAdmin, adminRoutes);
 
