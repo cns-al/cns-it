@@ -233,6 +233,10 @@ nano .env
 # Build and start
 docker compose up -d --build
 
+# If build fails with ECONNREFUSED (restricted network), use:
+# DOCKER_BUILDKIT=1 docker build --network=host -t cns-it-cns-it .
+# docker compose up -d
+
 # Verify
 docker compose ps
 docker compose logs --tail=20 cns-it
@@ -689,7 +693,7 @@ All 55+ tools are accessible at `/tools` and open in modal overlays. Each tool r
 | **Snippet Limits** | Title ≤ 200, Description ≤ 5000, Code ≤ 100KB |
 | **Diagram Limits** | XML ≤ 5MB |
 | **Admin Safeguards** | Cannot self-delete, cannot delete last admin |
-| **Non-root Container** | Runs as `cnsit:1001` |
+| **Container User** | Runs as root (required for `/data` volume mount ownership) |
 | **Network Isolation** | Dedicated Docker bridge network |
 | **Resource Limits** | 512M/1.0 CPU (app), 256M/0.5 CPU (drawio) |
 
@@ -796,6 +800,44 @@ docker compose restart
 ### Rate Limit Exceeded
 
 Wait for the window to expire (15 minutes for auth, 60 seconds for API). Check `Retry-After` header.
+
+### Docker Build Fails with ECONNREFUSED
+
+If `docker compose up --build` fails with `ECONNREFUSED` when fetching from `registry.npmjs.org`, the Docker build network cannot reach the npm registry. This is common on restricted corporate networks or VMs with firewall rules.
+
+**Fix:** Build with `--network=host`:
+
+```bash
+# One-time build with host network
+DOCKER_BUILDKIT=1 docker build --network=host -t cns-it-cns-it .
+docker compose up -d
+```
+
+**Alternative:** If you use `docker compose build`, set the build network globally:
+
+```bash
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+# Then in docker-compose.yaml, add to the cns-it service:
+#   build:
+#     context: .
+#     args:
+#       BUILDKIT_INLINE_CACHE: "1"
+```
+
+**Diagnosis:** Test registry access from a container:
+
+```bash
+docker run --rm node:20-bookworm-slim node -e "const https=require('https'); https.get('https://registry.npmjs.org/', (r)=>{console.log('OK',r.statusCode);process.exit(0);}).on('error',(e)=>{console.log('FAIL',e.code);process.exit(1);});"
+```
+
+If it fails, test with host network:
+
+```bash
+docker run --rm --network=host node:20-bookworm-slim node -e "const https=require('https'); https.get('https://registry.npmjs.org/', (r)=>{console.log('OK',r.statusCode);process.exit(0);}).on('error',(e)=>{console.log('FAIL',e.code);process.exit(1);});"
+```
+
+If the host network test succeeds but the default fails, use `--network=host` for builds.
 
 ### Reset Database
 
