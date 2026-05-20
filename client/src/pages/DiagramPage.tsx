@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?proto=json&db=0&odp=0&configure=1&dark=0&ui=atlas&spin=1&p=0&noembed=0`;
+const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas`;
 
 function downloadFile(content: string, filename: string) {
   const blob = new Blob([content], { type: 'application/octet-stream' });
@@ -65,6 +65,50 @@ export default function DiagramPage() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [handleMessage]);
+
+  // Inject CNS IT branding CSS into the draw.io iframe
+  useEffect(() => {
+    const injectBranding = () => {
+      const iframe = iframeRef.current;
+      if (!iframe || !iframe.contentDocument) return;
+      const doc = iframe.contentDocument;
+      // Inject CSS if not already present
+      if (!doc.getElementById('cnsit-branding-css')) {
+        const style = doc.createElement('style');
+        style.id = 'cnsit-branding-css';
+        style.textContent = `
+          .geLogo, .geLogoLink, .geLogoImg, .geLogoSvg,
+          img[src*="logo"], img[src*="drawio"],
+          .geFooter, .geFooterLink,
+          .geSplash, .geSplashLogo,
+          .geSplash h1, .geSplash p,
+          h1.geTitle, .geTitle,
+          #geInfo h1, #geInfo p:first-of-type,
+          a[href*="drawio.com"], a[href*="diagrams.net"],
+          a[href*="github.com/jgraph"],
+          .geFooter a, [class*="Footer"] a,
+          .geAbout, .geAboutDialog,
+          .geTopToolbar > div:first-child { display: none !important; }
+          .geToolbar, .geTopToolbar { background: #ffffff !important; border-bottom: 1px solid #e5e7eb !important; }
+          .geBtn, .gePrimaryBtn { background: #2563eb !important; border-color: #2563eb !important; }
+        `;
+        doc.head.appendChild(style);
+      }
+      // Override title
+      doc.title = 'CNS IT — Diagram Editor';
+    };
+    const iframe = iframeRef.current;
+    if (iframe) {
+      iframe.addEventListener('load', injectBranding);
+    }
+    const interval = setInterval(injectBranding, 2000);
+    return () => {
+      clearInterval(interval);
+      if (iframe) {
+        iframe.removeEventListener('load', injectBranding);
+      }
+    };
+  }, []);
 
   const sendMessage = (message: Record<string, unknown>) => {
     if (iframeRef.current?.contentWindow) {

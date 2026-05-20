@@ -20,10 +20,30 @@ import Logger from './logger.js';
 const DRAWIO_HOST = process.env.DRAWIO_HOST || 'cns-drawio';
 const DRAWIO_PORT = process.env.DRAWIO_PORT || 8080;
 
-// Simple HTTP proxy for draw.io
+// CSS to rebrand draw.io (injected into HTML responses, may be removed by draw.io JS)
+// Actual branding is handled by DiagramPage.tsx injecting CSS into the iframe
+const CNS_DRAWIO_CSS = `
+<style>
+  .geLogo, .geLogoLink, .geLogoImg, .geLogoSvg,
+  img[src*="logo"], img[src*="drawio"],
+  .geFooter, .geFooterLink,
+  .geSplash, .geSplashLogo,
+  .geSplash h1, .geSplash p,
+  h1.geTitle, .geTitle,
+  #geInfo h1, #geInfo p:first-of-type,
+  a[href*="drawio.com"], a[href*="diagrams.net"],
+  a[href*="github.com/jgraph"],
+  .geFooter a, [class*="Footer"] a,
+  .geAbout, .geAboutDialog,
+  .geTopToolbar > div:first-child { display: none !important; }
+  .geToolbar, .geTopToolbar { background: #ffffff !important; border-bottom: 1px solid #e5e7eb !important; }
+  .geBtn, .gePrimaryBtn { background: #2563eb !important; border-color: #2563eb !important; }
+</style>
+`;
+
+// Simple HTTP proxy for draw.io with HTML rebranding
 function proxyDrawio(req, res) {
   const basePath = process.env.BASE_PATH || '';
-  // Strip /drawio prefix from the original URL
   const originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}/drawio`), '');
   const options = {
     hostname: DRAWIO_HOST,
@@ -37,7 +57,67 @@ function proxyDrawio(req, res) {
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
-    // Remove any frame-blocking headers
+    const headers = { ...proxyRes.headers };
+    delete headers['x-frame-options'];
+    delete headers['content-security-policy'];
+    delete headers['x-xss-protection'];
+    delete headers['x-content-type-options'];
+
+    const contentType = headers['content-type'] || '';
+    const isHtml = contentType.includes('text/html');
+
+    if (isHtml) {
+      const chunks = [];
+      proxyRes.on('data', (chunk) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        let html = Buffer.concat(chunks).toString('utf-8');
+        // Remove draw.io meta descriptions and name
+        html = html.replace(/<meta[^>]*name=["']Description["'][^>]*>/gi, '');
+        html = html.replace(/<meta[^>]*itemprop=[""]name[""][^>]*>/gi, '');
+        html = html.replace(/<meta[^>]*itemprop=[""]description[""][^>]*>/gi, '');
+        // Replace remaining draw.io text references (but not in JS code)
+        html = html.replace(/draw\.io/gi, 'CNS IT');
+        // Inject CSS before closing </head> tag
+        if (html.includes('</head>')) {
+          html = html.replace('</head>', CNS_DRAWIO_CSS + '</head>');
+        } else if (html.includes('<head>')) {
+          html = html.replace('<head>', '<head>' + CNS_DRAWIO_CSS);
+        }
+        const body = Buffer.from(html, 'utf-8');
+        headers['content-length'] = body.length;
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(body);
+      });
+    } else {
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    }
+  });
+
+  proxyReq.on('error', (err) => {
+    Logger.error('draw.io proxy error:', err);
+    res.status(502).json({ error: 'Diagram editor unavailable' });
+  });
+
+  req.pipe(proxyReq);
+}
+
+// Simple proxy for draw.io static assets (no HTML rewriting)
+function proxyDrawioAsset(req, res) {
+  const basePath = process.env.BASE_PATH || '';
+  const originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}`), '');
+  const options = {
+    hostname: DRAWIO_HOST,
+    port: DRAWIO_PORT,
+    path: originalUrl,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${DRAWIO_HOST}:${DRAWIO_PORT}`
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
     const headers = { ...proxyRes.headers };
     delete headers['x-frame-options'];
     delete headers['content-security-policy'];
@@ -46,8 +126,8 @@ function proxyDrawio(req, res) {
   });
 
   proxyReq.on('error', (err) => {
-    Logger.error('draw.io proxy error:', err);
-    res.status(502).json({ error: 'Diagram editor unavailable' });
+    Logger.error('draw.io asset proxy error:', err);
+    res.status(502).json({ error: 'Asset unavailable' });
   });
 
   req.pipe(proxyReq);
@@ -82,6 +162,10 @@ app.use(`${basePath}/api/admin`, authenticateToken, requireAdmin, adminRoutes);
 // Proxy draw.io requests
 app.all(`${basePath}/drawio/*`, proxyDrawio);
 app.all(`${basePath}/drawio`, proxyDrawio);
+// Proxy draw.io static assets (JS, images, etc.)
+app.all(`${basePath}/js/*`, proxyDrawioAsset);
+app.all(`${basePath}/images/*`, proxyDrawioAsset);
+app.all(`${basePath}/mxgraph.php`, proxyDrawioAsset);
 
 app.get('/', (req, res, next) => {
   if (basePath) {
