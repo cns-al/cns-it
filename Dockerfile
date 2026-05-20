@@ -9,11 +9,13 @@ COPY package*.json ./
 COPY server/package*.json ./server/
 COPY client/package*.json ./client/
 
-RUN npm ci && cd server && npm ci && cd ../client && npm ci && cd ..
+RUN npm ci
+RUN cd server && npm ci
+RUN cd client && npm ci
 
 COPY . .
 
-RUN cd client && npm run build && cd ..
+RUN cd client && npm run build
 
 # Production stage
 FROM node:20-slim AS production
