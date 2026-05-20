@@ -35,7 +35,6 @@ RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 5000
 
-USER cnsit
-
+# Run entrypoint as root to fix permissions, then drop to cnsit
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "server/src/app.js"]
