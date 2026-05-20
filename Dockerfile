@@ -1,31 +1,41 @@
-# Build stage - limit memory to avoid OOM on low-memory VMs
-FROM node:20-slim AS build
+# Build stage - pinned image for reproducible builds
+FROM node:20-bookworm-slim AS build
 
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# Fix "Exit handler never called!" npm bug
+RUN npm install -g npm@10.9.2
 
 WORKDIR /app
 
 COPY package*.json ./
+RUN node -v && npm -v
+RUN npm cache clean --force
+RUN npm ci --jobs=1 --no-audit --no-fund
+
 COPY server/package*.json ./server/
+WORKDIR /app/server
+RUN npm ci --jobs=1 --no-audit --no-fund
+
+WORKDIR /app
 COPY client/package*.json ./client/
+WORKDIR /app/client
+RUN npm ci --jobs=1 --no-audit --no-fund
+RUN test -x ./node_modules/.bin/tsc || (echo "ERROR: tsc not found!" && exit 1)
 
-# jobs=1: install one package at a time to prevent OOM
-RUN npm ci --jobs=1 && \
-    cd server && npm ci --jobs=1 && \
-    cd ../client && npm ci --jobs=1
-
+WORKDIR /app
 COPY . .
 
-RUN cd client && npm run build
+WORKDIR /app/client
+RUN npm run build
 
 # Production stage
-FROM node:20-slim AS production
+FROM node:20-bookworm-slim AS production
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copy server (with compiled node_modules) and pre-built client
 COPY --from=build /app/server ./server
 COPY --from=build /app/client/build ./client/build
 
