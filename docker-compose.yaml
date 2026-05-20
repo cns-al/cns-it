@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  cns-it:
+    build: .
+    container_name: cns-it
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+    environment:
+      - JWT_SECRET=cns-it-production-secret-change-me
+      - TOKEN_EXPIRY=24h
+      - ALLOW_NEW_ACCOUNTS=true
+      - ALLOW_PASSWORD_CHANGES=true
+      - DEBUG=false
