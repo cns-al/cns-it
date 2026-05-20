@@ -11,11 +11,11 @@ COPY client/package*.json ./client/
 
 RUN npm ci
 RUN cd server && npm ci
-RUN cd client && npm ci
+RUN cd client && npm ci && ls -la node_modules/.bin/tsc
 
 COPY . .
 
-RUN cd client && npm run build
+RUN cd client && ls -la node_modules/.bin/tsc && npm run build
 
 # Production stage
 FROM node:20-slim AS production
