@@ -6,8 +6,38 @@ const router = express.Router();
 
 router.get('/users', async (req, res) => {
   try {
-    const users = await userRepository.getAll();
+    const users = await userRepository.getAllWithApproval();
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/users/pending', async (req, res) => {
+  try {
+    const users = await userRepository.getPending();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/users/:id/approve', async (req, res) => {
+  try {
+    await userRepository.approve(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/users/:id/reject', async (req, res) => {
+  try {
+    const changes = await userRepository.reject(req.params.id);
+    if (changes.changes === 0) {
+      return res.status(404).json({ error: 'User not found or already processed' });
+    }
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }

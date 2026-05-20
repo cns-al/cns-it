@@ -32,6 +32,7 @@ export function initializeDatabase() {
       oidc_provider TEXT,
       is_admin INTEGER DEFAULT 0,
       is_active INTEGER DEFAULT 1,
+      is_approved INTEGER DEFAULT 1,
       last_login DATETIME
     );
 
@@ -102,6 +103,24 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
     CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);
   `);
+
+  // Migration: add is_approved column if it doesn't exist
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN is_approved INTEGER DEFAULT 1');
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: ensure first user is admin
+  try {
+    const firstUser = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
+    if (firstUser) {
+      db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(firstUser.id);
+      Logger.info('Ensured first user (id=' + firstUser.id + ') is admin');
+    }
+  } catch (err) {
+    Logger.error('Migration error:', err);
+  }
 
   Logger.info('Database initialized at ' + dbPath);
 }

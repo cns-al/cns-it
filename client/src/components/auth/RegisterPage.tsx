@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Code2, Loader2 } from 'lucide-react';
+import { Code2, Loader2, Clock, CheckCircle } from 'lucide-react';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,14 +24,61 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(username, password);
-      navigate('/snippets');
+      const result = await register(username, password);
+      if (result?.pending) {
+        setPending(true);
+      } else {
+        navigate('/snippets');
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
+
+  if (pending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-dark-50 dark:bg-dark-950 px-4">
+        <div className="w-full max-w-md">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
+              <Code2 className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-bold text-dark-900 dark:text-dark-100">CNS IT</h1>
+          </div>
+
+          <div className="rounded-2xl border border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 p-8 shadow-sm text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+              <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-dark-900 dark:text-dark-100">Registration Submitted</h2>
+            <p className="mt-3 text-sm text-dark-500">
+              Your account is pending admin approval. You'll be able to log in once your account is approved.
+            </p>
+            <div className="mt-6 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-4 text-left">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="mt-0.5 h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  We've received your registration request. The admin will review and approve your account shortly.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="mt-6 w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 active:bg-brand-800 transition-colors"
+            >
+              Go to Login
+            </button>
+          </div>
+
+          <p className="mt-6 text-center text-xs text-dark-400">
+            &copy; {new Date().getFullYear()} CNS Solutions. All rights reserved.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-dark-50 dark:bg-dark-950 px-4">

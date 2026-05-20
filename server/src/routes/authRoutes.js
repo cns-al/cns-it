@@ -25,6 +25,10 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account deactivated' });
     }
 
+    if (user.is_approved === 0) {
+      return res.status(403).json({ error: 'Account pending approval' });
+    }
+
     await userRepository.updateLastLogin(user.id);
 
     const token = jwt.sign(
@@ -77,7 +81,20 @@ router.post('/register', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await userRepository.create(username, passwordHash);
+    const userCount = await userRepository.count();
+    const isFirstUser = userCount === 0;
+    const user = await userRepository.create(username, passwordHash, isFirstUser);
+
+    if (isFirstUser) {
+      await userRepository.makeAdmin(user.id);
+    }
+
+    if (!isFirstUser) {
+      return res.status(202).json({
+        message: 'Registration successful. Your account is pending admin approval.',
+        pending: true
+      });
+    }
 
     const token = jwt.sign(
       { id: user.id, username: user.username, isAdmin: user.is_admin === 1 },
@@ -91,7 +108,8 @@ router.post('/register', async (req, res) => {
         id: user.id,
         username: user.username,
         isAdmin: user.is_admin === 1
-      }
+      },
+      message: 'Registration successful. You are the first admin.'
     });
   } catch (error) {
     Logger.error('Registration error:', error);

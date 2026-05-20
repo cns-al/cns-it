@@ -12,7 +12,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string) => Promise<{ pending: boolean }>;
   logout: () => void;
   changePassword: (current: string, newPass: string) => Promise<void>;
 }
@@ -68,9 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
+      if (data.pending) {
+        toast.success('Registration submitted! Awaiting admin approval.');
+        return { pending: true };
+      }
+
       localStorage.setItem('cnsit_token', data.token);
       setUser(data.user);
-      toast.success('Account created successfully!');
+      toast.success(data.message || 'Account created successfully!');
+      return { pending: false };
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
       throw err;

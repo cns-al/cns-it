@@ -18,9 +18,11 @@ const userRepository = {
     return db.prepare('SELECT * FROM users WHERE oidc_id = ? AND oidc_provider = ?').get(oidcId, provider);
   },
 
-  async create(username, passwordHash) {
+  async create(username, passwordHash, skipApproval = false) {
     const db = getDb();
-    const result = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, passwordHash);
+    const result = db.prepare(
+      'INSERT INTO users (username, password_hash, is_approved) VALUES (?, ?, ?)'
+    ).run(username, passwordHash, skipApproval ? 1 : 0);
     return this.findById(result.lastInsertRowid);
   },
 
@@ -88,6 +90,30 @@ const userRepository = {
   async count() {
     const db = getDb();
     return db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+  },
+
+  async approve(userId) {
+    const db = getDb();
+    return db.prepare('UPDATE users SET is_approved = 1 WHERE id = ?').run(userId);
+  },
+
+  async reject(userId) {
+    const db = getDb();
+    return db.prepare('DELETE FROM users WHERE id = ? AND is_approved = 0').run(userId);
+  },
+
+  async getPending() {
+    const db = getDb();
+    return db.prepare(
+      'SELECT id, username, created_at, email, name, is_admin, is_active, is_approved FROM users WHERE is_approved = 0 ORDER BY created_at DESC'
+    ).all();
+  },
+
+  async getAllWithApproval() {
+    const db = getDb();
+    return db.prepare(
+      'SELECT id, username, created_at, email, name, is_admin, is_active, is_approved, last_login FROM users ORDER BY created_at DESC'
+    ).all();
   }
 };
 
