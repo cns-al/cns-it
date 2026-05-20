@@ -78,35 +78,42 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  try {
-    const { title, description, fragments, categories, isPublic } = req.body;
+   try {
+     const { title, description, fragments, categories, isPublic, steps } = req.body;
 
-    if (!title || !fragments || fragments.length === 0) {
-      return res.status(400).json({ error: 'Title and at least one fragment required' });
-    }
+     if (!title || ((!fragments || fragments.length === 0) && (!steps || steps.length === 0))) {
+       return res.status(400).json({ error: 'Title and at least one fragment or step required' });
+     }
 
-    if (title.length > 200) {
-      return res.status(400).json({ error: 'Title must be 200 characters or less' });
-    }
+     if (title.length > 200) {
+       return res.status(400).json({ error: 'Title must be 200 characters or less' });
+     }
 
-    if (description && description.length > 5000) {
-      return res.status(400).json({ error: 'Description must be 5000 characters or less' });
-    }
+     if (description && description.length > 5000) {
+       return res.status(400).json({ error: 'Description must be 5000 characters or less' });
+     }
 
-    for (const frag of fragments) {
-      if (frag.code.length > 100000) {
-        return res.status(400).json({ error: 'Each fragment must be 100KB or less' });
-      }
-    }
+     for (const frag of (fragments || [])) {
+       if (frag.code.length > 100000) {
+         return res.status(400).json({ error: 'Each fragment must be 100KB or less' });
+       }
+     }
 
-    const snippet = await snippetRepository.create(
-      title,
-      description || '',
-      req.user.id,
-      fragments,
-      isPublic || false,
-      categories || []
-    );
+     for (const step of (steps || [])) {
+       if (step.code.length > 100000) {
+         return res.status(400).json({ error: 'Each step code must be 100KB or less' });
+       }
+     }
+
+     const snippet = await snippetRepository.create(
+       title,
+       description || '',
+       req.user.id,
+       fragments || [],
+       isPublic || false,
+       categories || [],
+       steps || []
+     );
 
     res.status(201).json(snippet);
   } catch (error) {

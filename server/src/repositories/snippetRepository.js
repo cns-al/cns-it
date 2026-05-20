@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getDb } from '../config/database.js';
 
 const snippetRepository = {
-  async create(title, description, userId, fragments, isPublic = false, categories = []) {
+  async create(title, description, userId, fragments, isPublic = false, categories = [], steps = []) {
     const db = getDb();
     const stmt = db.transaction(() => {
       const snippetResult = db.prepare(
@@ -15,6 +15,12 @@ const snippetRepository = {
         db.prepare(
           'INSERT INTO fragments (snippet_id, file_name, code, language, position) VALUES (?, ?, ?, ?, ?)'
         ).run(snippetId, frag.name || `file${i + 1}`, frag.code, frag.language, i);
+      });
+
+      steps.forEach((step, i) => {
+        db.prepare(
+          'INSERT INTO steps (snippet_id, title, description, code, language, position) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(snippetId, step.title || `Step ${i + 1}`, step.description || '', step.code, step.language, i);
       });
 
       categories.forEach(catName => {
@@ -45,6 +51,7 @@ const snippetRepository = {
     if (!snippet) return null;
 
     snippet.fragments = db.prepare('SELECT * FROM fragments WHERE snippet_id = ? ORDER BY position').all(id);
+    snippet.steps = db.prepare('SELECT * FROM steps WHERE snippet_id = ? ORDER BY position').all(id);
     snippet.categories = db.prepare(`
       SELECT c.name FROM categories c
       JOIN snippet_categories sc ON c.id = sc.category_id
@@ -60,6 +67,7 @@ const snippetRepository = {
     let query = `
       SELECT s.*, u.username,
         (SELECT COUNT(*) FROM fragments WHERE snippet_id = s.id) as fragment_count,
+        (SELECT COUNT(*) FROM steps WHERE snippet_id = s.id) as step_count,
         (SELECT GROUP_CONCAT(c.name, ',') FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE sc.snippet_id = s.id) as categories
       FROM snippets s
       JOIN users u ON s.user_id = u.id
@@ -122,6 +130,15 @@ const snippetRepository = {
           db.prepare(
             'INSERT INTO fragments (snippet_id, file_name, code, language, position) VALUES (?, ?, ?, ?, ?)'
           ).run(id, frag.name || `file${i + 1}`, frag.code, frag.language, i);
+        });
+      }
+
+      if (updates.steps !== undefined) {
+        db.prepare('DELETE FROM steps WHERE snippet_id = ?').run(id);
+        updates.steps.forEach((step, i) => {
+          db.prepare(
+            'INSERT INTO steps (snippet_id, title, description, code, language, position) VALUES (?, ?, ?, ?, ?, ?)'
+          ).run(id, step.title || `Step ${i + 1}`, step.description || '', step.code, step.language, i);
         });
       }
 
@@ -219,6 +236,7 @@ const snippetRepository = {
 
     db.prepare('UPDATE shares SET view_count = view_count + 1 WHERE token = ?').run(token);
     share.fragments = db.prepare('SELECT * FROM fragments WHERE snippet_id = ? ORDER BY position').all(share.id);
+    share.steps = db.prepare('SELECT * FROM steps WHERE snippet_id = ? ORDER BY position').all(share.id);
     return share;
   }
 };

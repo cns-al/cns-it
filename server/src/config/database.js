@@ -59,6 +59,17 @@ export function initializeDatabase() {
       FOREIGN KEY (snippet_id) REFERENCES snippets(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      snippet_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      code TEXT NOT NULL,
+      language TEXT,
+      position INTEGER DEFAULT 0,
+      FOREIGN KEY (snippet_id) REFERENCES snippets(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -99,6 +110,7 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_snippets_user_id ON snippets(user_id);
     CREATE INDEX IF NOT EXISTS idx_snippets_is_public ON snippets(is_public);
     CREATE INDEX IF NOT EXISTS idx_fragments_snippet_id ON fragments(snippet_id);
+    CREATE INDEX IF NOT EXISTS idx_steps_snippet_id ON steps(snippet_id);
     CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
     CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
     CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);

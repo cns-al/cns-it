@@ -5,7 +5,7 @@ import {
   Plus, Search, FileCode, Star, Trash2, MoreVertical,
   Copy, ExternalLink, Clock, Tag, ChevronDown, Grid, List,
   Loader2, FolderOpen, Code2, Check, X, Globe, Lock, Share2, RefreshCw, Eye,
-  Pin, Heart, ZoomIn, ZoomOut, FolderTree
+  Pin, Heart, ZoomIn, ZoomOut, FolderTree, ListOrdered, Layers
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -60,6 +60,7 @@ interface Snippet {
   is_pinned: number;
   is_favorite: number;
   fragment_count?: number;
+  step_count?: number;
   categories?: string[];
   fragments?: { file_name: string; language: string; code: string }[];
 }
@@ -74,6 +75,7 @@ interface SnippetDetail {
   is_favorite: number;
   categories: string[];
   fragments: { id: number; file_name: string; code: string; language: string }[];
+  steps: { id: number; title: string; description: string; code: string; language: string }[];
 }
 
 export default function SnippetsPage() {
@@ -288,9 +290,10 @@ export default function SnippetsPage() {
 }
 
 function SnippetCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: (d: string) => string; onOpen: () => void }) {
-  const lang = snippet.fragments?.[0]?.language || '';
-  const cats = snippet.categories || [];
-  const fragCount = snippet.fragments?.length || snippet.fragment_count || 0;
+   const lang = snippet.fragments?.[0]?.language || '';
+   const cats = snippet.categories || [];
+   const fragCount = snippet.fragments?.length || snippet.fragment_count || 0;
+   const stepCount = snippet.step_count || 0;
   const langColor: Record<string, string> = {
     javascript: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
     typescript: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
@@ -341,9 +344,17 @@ function SnippetCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: 
           <Clock className="h-3 w-3" />
           {timeAgo(snippet.updated_at)}
         </span>
-        <span className="text-xs text-dark-400">
-          {fragCount} file{fragCount > 1 ? 's' : ''}
-        </span>
+        <div className="flex items-center gap-2 text-xs text-dark-400">
+          {stepCount > 0 && (
+            <span className="flex items-center gap-1">
+              <ListOrdered className="h-3 w-3" />
+              {stepCount} step{stepCount > 1 ? 's' : ''}
+            </span>
+          )}
+          {fragCount > 0 && (
+            <span>{fragCount} file{fragCount > 1 ? 's' : ''}</span>
+          )}
+        </div>
       </div>
     </button>
   );
@@ -388,11 +399,12 @@ function SnippetListCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeA
 }
 
 function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: () => void; onDeleted: () => void }) {
-  const [snippet, setSnippet] = useState<SnippetDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
-  const [showShare, setShowShare] = useState(false);
-  const [shareLink, setShareLink] = useState('');
+   const [snippet, setSnippet] = useState<SnippetDetail | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [activeTab, setActiveTab] = useState(0);
+   const [viewMode, setViewMode] = useState<'files' | 'steps'>('files');
+   const [showShare, setShowShare] = useState(false);
+   const [shareLink, setShareLink] = useState('');
 
   useEffect(() => {
     loadSnippet();
@@ -406,6 +418,7 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
       if (!res.ok) throw new Error(data.error);
       setSnippet(data);
       setActiveTab(0);
+      setViewMode((data.steps && data.steps.length > 0) ? 'steps' : 'files');
     } catch (err) {
       console.error('Failed to load snippet:', err);
     } finally {
@@ -514,40 +527,98 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
               </div>
             )}
 
-            {/* File Tabs */}
-            <div className="flex border-b border-dark-200 dark:border-dark-800 overflow-x-auto shrink-0">
-              {snippet.fragments.map((frag, i) => (
-                <button
-                  key={frag.id}
-                  onClick={() => setActiveTab(i)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === i
-                      ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                      : 'border-transparent text-dark-400 hover:text-dark-600 dark:hover:text-dark-300'
-                  }`}
-                >
-                  <code className="text-xs">{frag.file_name}</code>
-                  {frag.language && <span className="badge badge-brand">{frag.language}</span>}
-                </button>
-              ))}
-            </div>
-
-            {/* Code Viewer */}
-            <div className="flex-1 overflow-auto bg-dark-50 dark:bg-dark-950 p-6 min-h-0">
-              {snippet.fragments[activeTab] && (
-                <div className="relative">
+            {/* View Mode Toggle */}
+            {(snippet.fragments.length > 0 || (snippet.steps && snippet.steps.length > 0)) && (
+              <div className="flex items-center gap-1 border-b border-dark-200 dark:border-dark-800 px-4 shrink-0">
+                {snippet.fragments.length > 0 && (
                   <button
-                    onClick={() => copyCode(snippet.fragments[activeTab].code)}
-                    className="absolute right-3 top-3 rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 z-10"
+                    onClick={() => { setViewMode('files'); setActiveTab(0); }}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${viewMode === 'files' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-dark-400 hover:text-dark-600'}`}
                   >
-                    <Copy className="h-4 w-4" />
+                    <Layers className="h-3.5 w-3.5" />
+                    Files ({snippet.fragments.length})
                   </button>
-                  <pre className="text-sm font-mono leading-relaxed text-dark-900 dark:text-dark-100 whitespace-pre-wrap break-all">
-                    {snippet.fragments[activeTab].code}
-                  </pre>
+                )}
+                {snippet.steps && snippet.steps.length > 0 && (
+                  <button
+                    onClick={() => { setViewMode('steps'); setActiveTab(0); }}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${viewMode === 'steps' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-dark-400 hover:text-dark-600'}`}
+                  >
+                    <ListOrdered className="h-3.5 w-3.5" />
+                    Steps ({snippet.steps.length})
+                  </button>
+                )}
+              </div>
+            )}
+
+            {viewMode === 'files' && snippet.fragments.length > 0 && (
+              <>
+                {/* File Tabs */}
+                <div className="flex border-b border-dark-200 dark:border-dark-800 overflow-x-auto shrink-0">
+                  {snippet.fragments.map((frag, i) => (
+                    <button
+                      key={frag.id}
+                      onClick={() => setActiveTab(i)}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        activeTab === i
+                          ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                          : 'border-transparent text-dark-400 hover:text-dark-600 dark:hover:text-dark-300'
+                      }`}
+                    >
+                      <code className="text-xs">{frag.file_name}</code>
+                      {frag.language && <span className="badge badge-brand">{frag.language}</span>}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
+
+                {/* Code Viewer */}
+                <div className="flex-1 overflow-auto bg-dark-50 dark:bg-dark-950 p-6 min-h-0">
+                  {snippet.fragments[activeTab] && (
+                    <div className="relative">
+                      <button
+                        onClick={() => copyCode(snippet.fragments[activeTab].code)}
+                        className="absolute right-3 top-3 rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 z-10"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <pre className="text-sm font-mono leading-relaxed text-dark-900 dark:text-dark-100 whitespace-pre-wrap break-all">
+                        {snippet.fragments[activeTab].code}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {viewMode === 'steps' && snippet.steps && snippet.steps.length > 0 && (
+              <div className="flex-1 overflow-auto bg-dark-50 dark:bg-dark-950 p-6 min-h-0 space-y-6">
+                {snippet.steps.map((step, i) => (
+                  <div key={step.id} className="rounded-xl border border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-100 dark:border-dark-800 bg-dark-50 dark:bg-dark-950">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-semibold text-dark-900 dark:text-dark-100">{step.title}</h4>
+                        {step.description && <p className="text-xs text-dark-500">{step.description}</p>}
+                      </div>
+                      {step.language && <span className="badge badge-brand">{step.language}</span>}
+                      <button
+                        onClick={() => copyCode(step.code)}
+                        className="shrink-0 rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="p-4">
+                      <pre className="text-sm font-mono leading-relaxed text-dark-900 dark:text-dark-100 whitespace-pre-wrap break-all">
+                        {step.code}
+                      </pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -573,154 +644,247 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
 }
 
 function CreateSnippetModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('javascript');
-  const [categoryInput, setCategoryInput] = useState('');
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCats, setSelectedCats] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+   const [title, setTitle] = useState('');
+   const [description, setDescription] = useState('');
+   const [mode, setMode] = useState<'code' | 'steps'>('code');
+   const [code, setCode] = useState('');
+   const [language, setLanguage] = useState('javascript');
+   const [steps, setSteps] = useState<{ title: string; description: string; code: string; language: string }[]>([
+     { title: 'Step 1', description: '', code: '', language: 'javascript' }
+   ]);
+   const [categoryInput, setCategoryInput] = useState('');
+   const [categories, setCategories] = useState<string[]>([]);
+   const [selectedCats, setSelectedCats] = useState<string[]>([]);
+   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/snippets/categories');
-        const data = await res.json();
-        setCategories((data || []).map((c: any) => c.name));
-      } catch (err) { console.error('Failed to load categories:', err); }
-    })();
-  }, []);
+   useEffect(() => {
+     (async () => {
+       try {
+         const res = await api.get('/snippets/categories');
+         const data = await res.json();
+         setCategories((data || []).map((c: any) => c.name));
+       } catch (err) { console.error('Failed to load categories:', err); }
+     })();
+   }, []);
 
-  const addCategory = () => {
-    const cat = categoryInput.trim();
-    if (cat && !selectedCats.includes(cat)) {
-      setSelectedCats([...selectedCats, cat]);
-      setCategoryInput('');
-    }
-  };
+   const addCategory = () => {
+     const cat = categoryInput.trim();
+     if (cat && !selectedCats.includes(cat)) {
+       setSelectedCats([...selectedCats, cat]);
+       setCategoryInput('');
+     }
+   };
 
-  const removeCategory = (cat: string) => {
-    setSelectedCats(selectedCats.filter(c => c !== cat));
-  };
+   const removeCategory = (cat: string) => {
+     setSelectedCats(selectedCats.filter(c => c !== cat));
+   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await api.post('/snippets', {
-        title,
-        description,
-        fragments: [{ name: 'main', code, language }],
-        categories: selectedCats,
-      });
-      if (!res.ok) throw new Error('Failed to create snippet');
-      onSuccess();
-    } catch (err) {
-      console.error('Failed to create snippet:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+   const addStep = () => {
+     setSteps([...steps, { title: `Step ${steps.length + 1}`, description: '', code: '', language: 'javascript' }]);
+   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-dark-200 dark:border-dark-800 px-6 py-4">
-          <h2 className="text-lg font-semibold text-dark-900 dark:text-dark-100">New Snippet</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="input"
-              placeholder="Snippet title"
-              required
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="input resize-none"
-              rows={2}
-              placeholder="Optional description"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Language</label>
-            <LanguageSearch value={language} onChange={setLanguage} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Categories</label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={categoryInput}
-                  onChange={(e) => setCategoryInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
-                  className="input pr-8"
-                  placeholder="Type category name..."
-                  list="cat-suggestions"
-                />
-                {categoryInput && (
-                  <button type="button" onClick={addCategory} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-600 hover:text-brand-700">
-                    <Plus className="h-4 w-4" />
-                  </button>
-                )}
-                <datalist id="cat-suggestions">
-                  {categories.filter(c => !selectedCats.includes(c)).map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
-            </div>
-            {selectedCats.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {selectedCats.map(cat => (
-                  <span key={cat} className="flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-950/30 px-2.5 py-1 text-xs font-medium text-brand-700 dark:text-brand-400">
-                    <Tag className="h-3 w-3" />
-                    {cat}
-                    <button type="button" onClick={() => removeCategory(cat)} className="ml-0.5 text-brand-400 hover:text-brand-600">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Code</label>
-            <textarea
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="input font-mono text-sm resize-none"
-              rows={8}
-              placeholder="Paste your code here..."
-              required
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-              Create Snippet
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+   const removeStep = (index: number) => {
+     if (steps.length <= 1) return;
+     setSteps(steps.filter((_, i) => i !== index));
+   };
+
+   const updateStep = (index: number, field: string, value: string) => {
+     setSteps(steps.map((s, i) => i === index ? { ...s, [field]: value } : s));
+   };
+
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     setLoading(true);
+     try {
+       const payload: any = { title, description, categories: selectedCats };
+       if (mode === 'code') {
+         payload.fragments = [{ name: 'main', code, language }];
+       } else {
+         payload.steps = steps.map((s, i) => ({ ...s, title: s.title || `Step ${i + 1}` }));
+       }
+       const res = await api.post('/snippets', payload);
+       if (!res.ok) throw new Error('Failed to create snippet');
+       onSuccess();
+     } catch (err) {
+       console.error('Failed to create snippet:', err);
+     } finally {
+       setLoading(false);
+     }
+   };
+
+   return (
+     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+       <div className="w-full max-w-lg rounded-2xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+         <div className="flex items-center justify-between border-b border-dark-200 dark:border-dark-800 px-6 py-4 shrink-0">
+           <h2 className="text-lg font-semibold text-dark-900 dark:text-dark-100">New Snippet</h2>
+           <button onClick={onClose} className="rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800">
+             <X className="h-4 w-4" />
+           </button>
+         </div>
+         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+           <div>
+             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Title</label>
+             <input
+               type="text"
+               value={title}
+               onChange={(e) => setTitle(e.target.value)}
+               className="input"
+               placeholder="Snippet title"
+               required
+               autoFocus
+             />
+           </div>
+           <div>
+             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Description</label>
+             <textarea
+               value={description}
+               onChange={(e) => setDescription(e.target.value)}
+               className="input resize-none"
+               rows={2}
+               placeholder="Optional description"
+             />
+           </div>
+
+           {/* Mode Toggle */}
+           <div>
+             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Content Type</label>
+             <div className="flex rounded-lg border border-dark-200 dark:border-dark-700 overflow-hidden">
+               <button
+                 type="button"
+                 onClick={() => setMode('code')}
+                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${mode === 'code' ? 'bg-brand-600 text-white' : 'bg-dark-50 dark:bg-dark-800 text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'}`}
+               >
+                 <Code2 className="h-4 w-4" />
+                 Single Code
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setMode('steps')}
+                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${mode === 'steps' ? 'bg-brand-600 text-white' : 'bg-dark-50 dark:bg-dark-800 text-dark-500 hover:text-dark-700 dark:hover:text-dark-300'}`}
+               >
+                 <ListOrdered className="h-4 w-4" />
+                 Multi-Step
+               </button>
+             </div>
+           </div>
+
+           {mode === 'code' ? (
+             <>
+               <div>
+                 <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Language</label>
+                 <LanguageSearch value={language} onChange={setLanguage} />
+               </div>
+               <div>
+                 <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Code</label>
+                 <textarea
+                   value={code}
+                   onChange={(e) => setCode(e.target.value)}
+                   className="input font-mono text-sm resize-none"
+                   rows={8}
+                   placeholder="Paste your code here..."
+                   required
+                 />
+               </div>
+             </>
+           ) : (
+             <div className="space-y-4">
+               {steps.map((step, index) => (
+                 <div key={index} className="rounded-lg border border-dark-200 dark:border-dark-700 p-4 space-y-3">
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/30 text-xs font-bold text-brand-600 dark:text-brand-400">
+                         {index + 1}
+                       </span>
+                       <input
+                         type="text"
+                         value={step.title}
+                         onChange={(e) => updateStep(index, 'title', e.target.value)}
+                         className="text-sm font-medium bg-transparent border-none outline-none text-dark-900 dark:text-dark-100 w-full"
+                         placeholder={`Step ${index + 1}`}
+                       />
+                     </div>
+                     {steps.length > 1 && (
+                       <button type="button" onClick={() => removeStep(index)} className="text-dark-400 hover:text-red-500">
+                         <X className="h-4 w-4" />
+                       </button>
+                     )}
+                   </div>
+                   <textarea
+                     value={step.description}
+                     onChange={(e) => updateStep(index, 'description', e.target.value)}
+                     className="input text-xs resize-none"
+                     rows={1}
+                     placeholder="What does this step do?"
+                   />
+                   <LanguageSearch value={step.language} onChange={(v) => updateStep(index, 'language', v)} />
+                   <textarea
+                     value={step.code}
+                     onChange={(e) => updateStep(index, 'code', e.target.value)}
+                     className="input font-mono text-sm resize-none"
+                     rows={4}
+                     placeholder="Code for this step..."
+                     required
+                   />
+                 </div>
+               ))}
+               <button type="button" onClick={addStep} className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed border-dark-300 dark:border-dark-600 px-4 py-3 text-sm text-dark-500 hover:text-brand-600 hover:border-brand-300 dark:hover:border-brand-700 dark:hover:text-brand-400 transition-colors">
+                 <Plus className="h-4 w-4" />
+                 Add Step
+               </button>
+             </div>
+           )}
+
+           <div>
+             <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Categories</label>
+             <div className="flex gap-2">
+               <div className="relative flex-1">
+                 <input
+                   type="text"
+                   value={categoryInput}
+                   onChange={(e) => setCategoryInput(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+                   className="input pr-8"
+                   placeholder="Type category name..."
+                   list="cat-suggestions"
+                 />
+                 {categoryInput && (
+                   <button type="button" onClick={addCategory} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-600 hover:text-brand-700">
+                     <Plus className="h-4 w-4" />
+                   </button>
+                 )}
+                 <datalist id="cat-suggestions">
+                   {categories.filter(c => !selectedCats.includes(c)).map(c => <option key={c} value={c} />)}
+                 </datalist>
+               </div>
+             </div>
+             {selectedCats.length > 0 && (
+               <div className="mt-2 flex flex-wrap gap-1.5">
+                 {selectedCats.map(cat => (
+                   <span key={cat} className="flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-950/30 px-2.5 py-1 text-xs font-medium text-brand-700 dark:text-brand-400">
+                     <Tag className="h-3 w-3" />
+                     {cat}
+                     <button type="button" onClick={() => removeCategory(cat)} className="ml-0.5 text-brand-400 hover:text-brand-600">
+                       <X className="h-3 w-3" />
+                     </button>
+                   </span>
+                 ))}
+               </div>
+             )}
+           </div>
+           <div className="flex justify-end gap-2 pt-2">
+             <button type="button" onClick={onClose} className="btn btn-secondary">
+               Cancel
+             </button>
+             <button type="submit" disabled={loading} className="btn btn-primary">
+               {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+               Create Snippet
+             </button>
+           </div>
+         </form>
+       </div>
+     </div>
+   );
+ }
 
 function LanguageSearch({ value, onChange }: { value: string; onChange: (l: string) => void }) {
   const [query, setQuery] = useState(value);
