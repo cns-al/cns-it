@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import {
-  Plus, Search, FileCode, Star, Trash2, MoreVertical,
-  Copy, ExternalLink, Clock, Tag, ChevronDown, Grid, List,
-  Loader2, FolderOpen, Code2, Check, X, Globe, Lock, Share2, RefreshCw, Eye,
+  Plus, Search, FileCode, Trash2,
+  Copy, Clock, Tag, Grid, List,
+  Loader2, FolderOpen, Code2, Check, X, Globe, Lock, Share2, Eye,
   Pin, Heart, ZoomIn, ZoomOut, FolderTree, ListOrdered, Layers
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -106,6 +106,12 @@ export default function SnippetsPage() {
     }
   }, [location.state]);
 
+  // Refresh snippets when returning to page
+  useEffect(() => {
+    loadSnippets();
+    loadCategories();
+  }, [location.pathname]);
+
   // Debounced search
   useEffect(() => {
     if (!search) { loadSnippets(); return; }
@@ -127,6 +133,9 @@ export default function SnippetsPage() {
       const data = await res.json();
       const parsed = (data.data || []).map((s: any) => ({
         ...s,
+        is_pinned: !!s.is_pinned,
+        is_favorite: !!s.is_favorite,
+        is_public: !!s.is_public,
         categories: s.categories ? s.categories.split(',').filter(Boolean) : [],
       }));
       setSnippets(parsed);
@@ -280,11 +289,11 @@ export default function SnippetsPage() {
         )}
       </div>
 
-      {/* Create Modal */}
-      {showCreate && <CreateSnippetModal onClose={() => setShowCreate(false)} onSuccess={() => { setShowCreate(false); loadSnippets(); }} />}
+     {/* Create Modal */}
+       {showCreate && <CreateSnippetModal onClose={() => setShowCreate(false)} onSuccess={() => { setShowCreate(false); loadSnippets(); loadCategories(); }} />}
 
-      {/* Detail Modal */}
-      {detailId !== null && <SnippetDetailModal id={detailId} onClose={() => setDetailId(null)} onDeleted={() => { setDetailId(null); loadSnippets(); }} />}
+       {/* Detail Modal */}
+       {detailId !== null && <SnippetDetailModal id={detailId} onClose={() => setDetailId(null)} onDeleted={() => { setDetailId(null); loadSnippets(); }} onUpdated={() => loadSnippets()} />}
     </div>
   );
 }
@@ -344,17 +353,6 @@ function SnippetCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeAgo: 
           <Clock className="h-3 w-3" />
           {timeAgo(snippet.updated_at)}
         </span>
-        <div className="flex items-center gap-2 text-xs text-dark-400">
-          {stepCount > 0 && (
-            <span className="flex items-center gap-1">
-              <ListOrdered className="h-3 w-3" />
-              {stepCount} step{stepCount > 1 ? 's' : ''}
-            </span>
-          )}
-          {fragCount > 0 && (
-            <span>{fragCount} file{fragCount > 1 ? 's' : ''}</span>
-          )}
-        </div>
       </div>
     </button>
   );
@@ -398,7 +396,7 @@ function SnippetListCard({ snippet, timeAgo, onOpen }: { snippet: Snippet; timeA
   );
 }
 
-function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: () => void; onDeleted: () => void }) {
+function SnippetDetailModal({ id, onClose, onDeleted, onUpdated }: { id: number; onClose: () => void; onDeleted: () => void; onUpdated: () => void }) {
    const [snippet, setSnippet] = useState<SnippetDetail | null>(null);
    const [loading, setLoading] = useState(true);
    const [activeTab, setActiveTab] = useState(0);
@@ -416,7 +414,7 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
       const res = await api.get(`/snippets/${id}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setSnippet(data);
+      setSnippet({ ...data, is_pinned: !!data.is_pinned, is_favorite: !!data.is_favorite, is_public: !!data.is_public });
       setActiveTab(0);
       setViewMode((data.steps && data.steps.length > 0) ? 'steps' : 'files');
     } catch (err) {
@@ -437,21 +435,24 @@ function SnippetDetailModal({ id, onClose, onDeleted }: { id: number; onClose: (
     if (!snippet) return;
     const res = await api.put(`/snippets/${id}`, { isPinned: !snippet.is_pinned });
     const data = await res.json();
-    setSnippet(data);
+    setSnippet({ ...data, is_pinned: !!data.is_pinned, is_favorite: !!data.is_favorite, is_public: !!data.is_public });
+    onUpdated();
   };
 
   const toggleFavorite = async () => {
     if (!snippet) return;
     const res = await api.put(`/snippets/${id}`, { isFavorite: !snippet.is_favorite });
     const data = await res.json();
-    setSnippet(data);
+    setSnippet({ ...data, is_pinned: !!data.is_pinned, is_favorite: !!data.is_favorite, is_public: !!data.is_public });
+    onUpdated();
   };
 
   const togglePublic = async () => {
     if (!snippet) return;
     const res = await api.put(`/snippets/${id}`, { isPublic: !snippet.is_public });
     const data = await res.json();
-    setSnippet(data);
+    setSnippet({ ...data, is_pinned: !!data.is_pinned, is_favorite: !!data.is_favorite, is_public: !!data.is_public });
+    onUpdated();
   };
 
   const createShare = async () => {

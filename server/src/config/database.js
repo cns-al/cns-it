@@ -118,13 +118,19 @@ export function initializeDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_snippets_user_id ON snippets(user_id);
-    CREATE INDEX IF NOT EXISTS idx_diagrams_user_id ON diagrams(user_id);
+    CREATE INDEX IF NOT EXISTS idx_snippets_user_expiry ON snippets(user_id, expiry_date);
     CREATE INDEX IF NOT EXISTS idx_snippets_is_public ON snippets(is_public);
+    CREATE INDEX IF NOT EXISTS idx_snippets_public_expiry ON snippets(is_public, expiry_date);
+    CREATE INDEX IF NOT EXISTS idx_diagrams_user_id ON diagrams(user_id);
     CREATE INDEX IF NOT EXISTS idx_fragments_snippet_id ON fragments(snippet_id);
+    CREATE INDEX IF NOT EXISTS idx_fragments_snippet_language ON fragments(snippet_id, language);
     CREATE INDEX IF NOT EXISTS idx_steps_snippet_id ON steps(snippet_id);
     CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
+    CREATE INDEX IF NOT EXISTS idx_categories_name_user ON categories(name, user_id);
     CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+    CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
     CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);
+    CREATE INDEX IF NOT EXISTS idx_shares_snippet ON shares(snippet_id);
   `);
 
   // Migration: add is_approved column if it doesn't exist

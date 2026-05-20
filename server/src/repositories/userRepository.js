@@ -114,6 +114,16 @@ const userRepository = {
     return db.prepare(
       'SELECT id, username, created_at, email, name, is_admin, is_active, is_approved, last_login FROM users ORDER BY created_at DESC'
     ).all();
+  },
+
+  async deleteUser(userId) {
+    const db = getDb();
+    return db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  },
+
+  async countAdmins() {
+    const db = getDb();
+    return db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get().count;
   }
 };
 

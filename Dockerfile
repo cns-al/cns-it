@@ -20,7 +20,7 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
-RUN groupadd -g 1001 -r nodejs && useradd -u 1001 -r -g nodejs cnsit
+RUN groupadd -g 1001 -r nodejs && useradd -u 1001 -r -g nodejs cnsit && apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/server/package*.json ./server/
 RUN cd server && npm ci --omit=dev && npm cache clean --force
@@ -37,6 +37,8 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 5000
+
+USER cnsit
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "server/src/app.js"]

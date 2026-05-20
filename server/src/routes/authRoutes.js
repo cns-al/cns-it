@@ -11,6 +11,7 @@ const router = express.Router();
 
 const loginLimiter = rateLimit({ max: 5, windowMs: 15 * 60 * 1000, message: 'Too many login attempts, please try again later' });
 const registerLimiter = rateLimit({ max: 3, windowMs: 15 * 60 * 1000, message: 'Too many registration attempts, please try again later' });
+const changePasswordLimiter = rateLimit({ max: 5, windowMs: 15 * 60 * 1000, message: 'Too many password change attempts, please try again later' });
 
 router.post('/login', loginLimiter, async (req, res) => {
   try {
@@ -57,7 +58,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 router.post('/register', registerLimiter, async (req, res) => {
   try {
-    if (!ALLOW_NEW_ACCOUNTS && !(await userRepository.count()) === 0) {
+    if (!ALLOW_NEW_ACCOUNTS && (await userRepository.count()) > 0) {
       return res.status(403).json({ error: 'Registration is disabled' });
     }
 
@@ -121,7 +122,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 });
 
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', changePasswordLimiter, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Shield, Users, Loader2, UserCheck, UserX, Crown, UserMinus, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, Users, Loader2, UserCheck, UserX, Crown, UserMinus, Clock, AlertCircle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 type Tab = 'pending' | 'users';
@@ -63,6 +63,18 @@ export default function AdminPage() {
     await api.put(`/admin/users/${id}/demote`);
     toast.success('User demoted');
     loadAll();
+  };
+
+  const deleteUser = async (id: number, username: string) => {
+    if (!confirm(`Permanently delete "${username}" and all their data? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/users/${id}`);
+      toast.success('User deleted');
+      loadAll();
+    } catch (err: any) {
+      const data = err.response?.data || {};
+      toast.error(data.error || 'Failed to delete user');
+    }
   };
 
   const approvedUsers = users.filter(u => u.is_approved);
@@ -228,6 +240,13 @@ export default function AdminPage() {
                             <UserMinus className="h-4 w-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => deleteUser(user.id, user.username)}
+                          className="rounded-lg p-1.5 text-dark-400 hover:text-red-500"
+                          title="Delete User"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

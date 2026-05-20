@@ -45,8 +45,8 @@ const snippetRepository = {
       SELECT s.*, u.username
       FROM snippets s
       JOIN users u ON s.user_id = u.id
-      WHERE s.id = ?
-    `).get(id);
+      WHERE s.id = ? AND (s.user_id = ? OR s.is_public = 1)
+    `).get(id, userId);
 
     if (!snippet) return null;
 

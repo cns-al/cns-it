@@ -52,6 +52,9 @@ export default function DashboardPage() {
       const snippetsData = await snippetsRes.json();
       const snippets = (snippetsData.data || []).map((s: any) => ({
         ...s,
+        is_pinned: !!s.is_pinned,
+        is_favorite: !!s.is_favorite,
+        is_public: !!s.is_public,
         categories: s.categories ? s.categories.split(',').filter(Boolean) : [],
       }));
       setRecentSnippets(snippets);

@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Theme } from '../../contexts/ThemeContext';
+import { api } from '../../api/client';
 import {
   Code2, Wrench, Settings, Trash2, LogOut, Menu, X,
   Sun, Moon, Monitor, FolderOpen, Shield, ChevronDown,
-  Search, Command, LayoutGrid, Image as ImageIcon
+  Search, Command, LayoutGrid, Image as ImageIcon, FileCode
 } from 'lucide-react';
 
 const navItems = [
@@ -29,6 +30,60 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard shortcut ⌘K / Ctrl+K
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchOpen]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get(`/snippets?search=${encodeURIComponent(searchQuery)}&limit=10`);
+        const data = await res.json();
+        setSearchResults((data.data || []).map((s: any) => ({
+          ...s,
+          categories: s.categories ? s.categories.split(',').filter(Boolean) : [],
+        })));
+      } catch { /* ignore */ }
+      setSearchLoading(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleLogout = () => {
     logout();
@@ -190,6 +245,55 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Search Modal */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/50 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
+          <div ref={searchRef} className="w-full max-w-xl rounded-2xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-2xl mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-dark-200 dark:border-dark-800 px-4">
+              <Search className="h-5 w-5 text-dark-400 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search snippets..."
+                className="flex-1 py-4 text-sm bg-transparent outline-none text-dark-900 dark:text-dark-100 placeholder-dark-400"
+              />
+              <button onClick={() => setSearchOpen(false)} className="rounded-lg p-1 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800">
+                <kbd className="rounded border border-dark-200 dark:border-dark-700 px-1.5 py-0.5 text-[10px] font-mono">ESC</kbd>
+              </button>
+            </div>
+            {(searchQuery.trim() || searchLoading) && (
+              <div className="max-h-80 overflow-y-auto">
+                {searchLoading ? (
+                  <div className="px-4 py-8 text-center text-sm text-dark-400">Searching...</div>
+                ) : searchResults.length === 0 && searchQuery.trim() ? (
+                  <div className="px-4 py-8 text-center text-sm text-dark-400">No snippets found</div>
+                ) : (
+                  searchResults.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSearchOpen(false); setSearchQuery(''); navigate('/snippets'); }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-dark-50 dark:hover:bg-dark-800 transition-colors border-b border-dark-100 dark:border-dark-800 last:border-0"
+                    >
+                      <FileCode className="h-4 w-4 shrink-0 text-dark-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-dark-900 dark:text-dark-100">{s.title}</div>
+                        {s.description && <div className="truncate text-xs text-dark-400">{s.description}</div>}
+                      </div>
+                      {s.categories?.length > 0 && <span className="badge badge-brand shrink-0">{s.categories[0]}</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {!searchQuery.trim() && (
+              <div className="px-4 py-6 text-center text-xs text-dark-400">Type to search your snippets</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

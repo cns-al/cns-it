@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import http from 'http';
 import { initializeDatabase, shutdownDatabase } from './config/database.js';
@@ -142,6 +143,7 @@ function proxyDrawioAsset(req, res) {
 const app = express();
 const PORT = 5000;
 
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.set('trust proxy', true);

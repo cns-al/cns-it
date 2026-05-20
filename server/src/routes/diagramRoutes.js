@@ -1,11 +1,13 @@
 import express from 'express';
 import { getDb } from '../config/database.js';
 import Logger from '../logger.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
+const diagramLimiter = rateLimit({ max: 30, windowMs: 60_000 });
 
 // GET /api/diagrams - list user's diagrams
-router.get('/', async (req, res) => {
+router.get('/', diagramLimiter, async (req, res) => {
   try {
     const db = getDb();
     const { limit = 20, offset = 0 } = req.query;
@@ -23,12 +25,15 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/diagrams - create new diagram
-router.post('/', async (req, res) => {
+router.post('/', diagramLimiter, async (req, res) => {
   try {
     const db = getDb();
     const { title, xml_data } = req.body;
     if (!xml_data) {
       return res.status(400).json({ error: 'Diagram data required' });
+    }
+    if (typeof xml_data === 'string' && xml_data.length > 5_000_000) {
+      return res.status(413).json({ error: 'Diagram XML too large (max 5MB)' });
     }
     const result = db.prepare(
       'INSERT INTO diagrams (title, xml_data, user_id) VALUES (?, ?, ?)'
@@ -43,7 +48,7 @@ router.post('/', async (req, res) => {
 });
 
 // GET /api/diagrams/:id - get single diagram
-router.get('/:id', async (req, res) => {
+router.get('/:id', diagramLimiter, async (req, res) => {
   try {
     const db = getDb();
     const diagram = db.prepare(
@@ -60,10 +65,13 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/diagrams/:id - update diagram
-router.put('/:id', async (req, res) => {
+router.put('/:id', diagramLimiter, async (req, res) => {
   try {
     const db = getDb();
     const { title, xml_data } = req.body;
+    if (xml_data !== undefined && typeof xml_data === 'string' && xml_data.length > 5_000_000) {
+      return res.status(413).json({ error: 'Diagram XML too large (max 5MB)' });
+    }
     const existing = db.prepare(
       'SELECT id FROM diagrams WHERE id = ? AND user_id = ?'
     ).get(req.params.id, req.user.id);
@@ -89,7 +97,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/diagrams/:id - delete diagram
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', diagramLimiter, async (req, res) => {
   try {
     const db = getDb();
     const existing = db.prepare(

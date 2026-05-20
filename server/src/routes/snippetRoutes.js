@@ -1,8 +1,10 @@
 import express from 'express';
 import snippetRepository from '../repositories/snippetRepository.js';
 import Logger from '../logger.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
+const snippetWriteLimiter = rateLimit({ max: 20, windowMs: 60_000 });
 
 router.get('/', async (req, res) => {
   try {
@@ -77,7 +79,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', snippetWriteLimiter, async (req, res) => {
    try {
      const { title, description, fragments, categories, isPublic, steps } = req.body;
 
@@ -122,7 +124,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', snippetWriteLimiter, async (req, res) => {
   try {
     const snippet = await snippetRepository.findById(req.params.id, req.user.id);
     if (!snippet) {
@@ -137,7 +139,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', snippetWriteLimiter, async (req, res) => {
   try {
     const snippet = await snippetRepository.findById(req.params.id, req.user.id);
     if (!snippet) {

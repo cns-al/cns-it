@@ -13,7 +13,7 @@ function getJwtSecret() {
       process.exit(1);
     }
   }
-  return process.env.JWT_SECRET || 'cns-it-secret-key';
+  if (!process.env.JWT_SECRET) { Logger.error('JWT_SECRET is not set; refusing to start'); process.exit(1); } return process.env.JWT_SECRET;
 }
 
 const JWT_SECRET = getJwtSecret();
