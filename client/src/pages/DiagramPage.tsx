@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   X, Download, Upload, Trash2, Save, Plus,
   ZoomIn, ZoomOut, Maximize2, Minimize2, Eye,
   Loader2, Copy, AlertCircle, Image as ImageIcon,
-  FileText, Code2, ChevronDown, PanelLeftClose, PanelLeftOpen
+  FileText, Code2, ChevronDown, PanelLeftClose, PanelLeftOpen,
+  FolderOpen, Clock, Search, ExternalLink, HardDrive
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { api } from '../api/client';
 
 const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas`;
 
@@ -29,7 +32,16 @@ interface DiagramMessage {
   title?: string;
 }
 
+interface SavedDiagram {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function DiagramPage() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +49,149 @@ export default function DiagramPage() {
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showSavedList, setShowSavedList] = useState(true);
   const [diagramTitle, setDiagramTitle] = useState('Untitled Diagram');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [savedDiagrams] = useState<Record<string, { xml: string; title: string; savedAt: string }>>({});
+  const [currentDiagramId, setCurrentDiagramId] = useState<number | null>(id ? parseInt(id) : null);
+  const [savedDiagrams, setSavedDiagrams] = useState<SavedDiagram[]>([]);
+  const [diagramsLoading, setDiagramsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Load saved diagrams list
+  const loadDiagrams = useCallback(async () => {
+    try {
+      setDiagramsLoading(true);
+      const res = await api.get('/diagrams?limit=50');
+      const data = await res.json();
+      setSavedDiagrams(data.data || []);
+    } catch (err) {
+      console.error('Failed to load diagrams:', err);
+    } finally {
+      setDiagramsLoading(false);
+    }
+  }, []);
+
+  // Load specific diagram by ID
+  const loadDiagram = useCallback(async (diagramId: number) => {
+    try {
+      const res = await api.get(`/diagrams/${diagramId}`);
+      const diagram = await res.json();
+      setCurrentDiagramId(diagramId);
+      setDiagramTitle(diagram.title);
+      if (diagram.xml_data && iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ action: 'load', xml: diagram.xml_data, mod: 0, fo: 0 }),
+          '*'
+        );
+        toast.success('Diagram loaded');
+      }
+    } catch (err) {
+      toast.error('Failed to load diagram');
+      console.error(err);
+    }
+  }, []);
+
+  // Save diagram to backend
+  const saveDiagram = useCallback(async () => {
+    try {
+      setSaving(true);
+      const iframe = iframeRef.current;
+      if (!iframe?.contentWindow) {
+        toast.error('Editor not ready');
+        return;
+      }
+      // Request XML from draw.io
+      iframe.contentWindow.postMessage(JSON.stringify({ action: 'export', format: 'xml' }), '*');
+      // Wait for response via message listener
+      const timeout = setTimeout(() => {
+        toast.error('Save timeout — diagram may be too large');
+        setSaving(false);
+      }, 10000);
+
+      const handler = (event: MessageEvent) => {
+        if (!event.data || typeof event.data !== 'string') return;
+        let msg: DiagramMessage;
+        try { msg = JSON.parse(event.data); } catch { return; }
+        if (msg.action === 'export' && msg.xml) {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handler);
+          const xmlData = msg.xml;
+          if (currentDiagramId) {
+            api.put(`/diagrams/${currentDiagramId}`, { title: diagramTitle, xml_data: xmlData })
+              .then(() => {
+                toast.success('Diagram saved');
+                setHasUnsaved(false);
+                loadDiagrams();
+              }).catch(() => toast.error('Failed to save diagram'));
+          } else {
+            api.post('/diagrams', { title: diagramTitle, xml_data: xmlData })
+              .then(async (res) => {
+                const data = await res.json();
+                setCurrentDiagramId(data.id);
+                toast.success('Diagram saved');
+                setHasUnsaved(false);
+                loadDiagrams();
+              }).catch(() => toast.error('Failed to save diagram'));
+          }
+          setSaving(false);
+        }
+      };
+      window.addEventListener('message', handler);
+    } catch (err) {
+      toast.error('Failed to save diagram');
+      setSaving(false);
+    }
+  }, [currentDiagramId, diagramTitle, loadDiagrams]);
+
+  // Delete diagram
+  const deleteDiagram = useCallback(async (diagramId: number) => {
+    if (!confirm('Delete this diagram? This cannot be undone.')) return;
+    try {
+      await api.delete(`/diagrams/${diagramId}`);
+      toast.success('Diagram deleted');
+      if (currentDiagramId === diagramId) {
+        setCurrentDiagramId(null);
+        setDiagramTitle('Untitled Diagram');
+        sendMessage({ action: 'new' });
+      }
+      loadDiagrams();
+    } catch (err) {
+      toast.error('Failed to delete diagram');
+    }
+  }, [currentDiagramId, loadDiagrams]);
+
+  // Export to PC
+  const exportToPC = useCallback((format: ExportFormat) => {
+    setShowExport(false);
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+
+    if (format === 'xml' || format === 'json') {
+      iframe.contentWindow.postMessage(JSON.stringify({ action: 'export', format }), '*');
+      const handler = (event: MessageEvent) => {
+        if (!event.data || typeof event.data !== 'string') return;
+        let msg: DiagramMessage;
+        try { msg = JSON.parse(event.data); } catch { return; }
+        if ((msg.action === 'export') && (msg.xml || msg.json)) {
+          const content = msg.xml || msg.json || '';
+          const ext = format === 'json' ? 'json' : 'drawio';
+          downloadFile(content, `${diagramTitle.replace(/[^a-z0-9]/gi, '_')}.${ext}`);
+          window.removeEventListener('message', handler);
+          toast.success(`Exported as ${format.toUpperCase()}`);
+        }
+      };
+      window.addEventListener('message', handler);
+      setTimeout(() => window.removeEventListener('message', handler), 10000);
+    } else {
+      iframe.contentWindow.postMessage(
+        JSON.stringify({ action: 'export', format, spinTitle: 'Exporting...' }),
+        '*'
+      );
+      toast.success(`Exporting as ${format.toUpperCase()}...`);
+    }
+  }, [diagramTitle]);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     if (!event.data || typeof event.data !== 'string') return;
@@ -66,13 +217,22 @@ export default function DiagramPage() {
     return () => window.removeEventListener('message', handleMessage);
   }, [handleMessage]);
 
+  useEffect(() => {
+    loadDiagrams();
+  }, [loadDiagrams]);
+
+  useEffect(() => {
+    if (id) {
+      loadDiagram(parseInt(id));
+    }
+  }, [id, loadDiagram]);
+
   // Inject CNS IT branding CSS into the draw.io iframe
   useEffect(() => {
     const injectBranding = () => {
       const iframe = iframeRef.current;
       if (!iframe || !iframe.contentDocument) return;
       const doc = iframe.contentDocument;
-      // Inject CSS if not already present
       if (!doc.getElementById('cnsit-branding-css')) {
         const style = doc.createElement('style');
         style.id = 'cnsit-branding-css';
@@ -94,7 +254,6 @@ export default function DiagramPage() {
         `;
         doc.head.appendChild(style);
       }
-      // Override title
       doc.title = 'CNS IT — Diagram Editor';
     };
     const iframe = iframeRef.current;
@@ -120,19 +279,9 @@ export default function DiagramPage() {
     if (hasUnsaved && !confirm('Create new diagram? Unsaved changes will be lost.')) return;
     sendMessage({ action: 'new' });
     setHasUnsaved(false);
+    setCurrentDiagramId(null);
     setDiagramTitle('Untitled Diagram');
     toast.success('New diagram created');
-  };
-
-  const handleSave = () => {
-    sendMessage({ action: 'save' });
-    toast.success('Diagram saved');
-  };
-
-  const handleExport = (format: ExportFormat) => {
-    setShowExport(false);
-    sendMessage({ action: 'export', format, spinTitle: 'Exporting...' });
-    toast.success(`Exporting as ${format.toUpperCase()}...`);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,20 +293,19 @@ export default function DiagramPage() {
       sendMessage({ action: 'load', xml: content, mod: 0, fo: 0 });
       setShowImport(false);
       setHasUnsaved(true);
+      setCurrentDiagramId(null);
+      setDiagramTitle(file.name.replace(/\.[^.]+$/, ''));
       toast.success('Diagram imported');
     };
     reader.readAsText(file);
-  };
-
-  const handleCopyDiagram = () => {
-    sendMessage({ action: 'export', format: 'xml' });
-    toast.success('Diagram data exported');
   };
 
   const handleClear = () => {
     if (confirm('Clear the current diagram?')) {
       sendMessage({ action: 'new' });
       setHasUnsaved(false);
+      setCurrentDiagramId(null);
+      setDiagramTitle('Untitled Diagram');
       toast.success('Diagram cleared');
     }
   };
@@ -170,173 +318,292 @@ export default function DiagramPage() {
     { id: 'jpg', label: 'JPG Image', icon: ImageIcon },
     { id: 'svg', label: 'SVG Vector', icon: ImageIcon },
     { id: 'pdf', label: 'PDF Document', icon: FileText },
-    { id: 'xml', label: 'XML (draw.io)', icon: Code2 },
+    { id: 'xml', label: 'XML (.drawio)', icon: Code2 },
     { id: 'json', label: 'JSON', icon: Code2 },
   ];
 
+  const filteredDiagrams = savedDiagrams.filter(d =>
+    d.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
   return (
-    <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-[60] bg-dark-50 dark:bg-dark-950' : 'h-full'}`}>
-      {/* Header Toolbar */}
-      <div className="flex items-center gap-2 border-b border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 px-4 py-2 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-          <ImageIcon className="h-4 w-4" />
-        </div>
+    <div className={`flex ${isFullscreen ? 'fixed inset-0 z-[60] bg-dark-50 dark:bg-dark-950' : 'h-full'}`}>
+      {/* Saved Diagrams Sidebar */}
+      {showSavedList && !isFullscreen && (
+        <div className="w-64 border-r border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 flex flex-col shrink-0">
+          <div className="p-3 border-b border-dark-200 dark:border-dark-800">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-dark-900 dark:text-dark-100 flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" />
+                Saved Diagrams
+              </h3>
+              <button
+                onClick={() => setShowSavedList(false)}
+                className="rounded p-1 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800"
+                title="Hide sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400" />
+              <input
+                type="text"
+                placeholder="Search diagrams..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 text-dark-700 dark:text-dark-300 outline-none focus:border-brand-500"
+              />
+            </div>
+          </div>
 
-        {/* Title */}
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {isEditingTitle ? (
-            <input
-              type="text"
-              value={diagramTitle}
-              onChange={(e) => setDiagramTitle(e.target.value)}
-              onBlur={() => setIsEditingTitle(false)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
-              className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none text-dark-900 dark:text-dark-100"
-              autoFocus
-            />
-          ) : (
-            <button
-              onClick={() => setIsEditingTitle(true)}
-              className="text-sm font-semibold text-dark-900 dark:text-dark-100 hover:text-brand-600 dark:hover:text-brand-400 truncate"
-              title="Click to rename"
-            >
-              {diagramTitle}
-            </button>
-          )}
-          {hasUnsaved && (
-            <span className="relative inline-flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-yellow-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
-            </span>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Toolbar Buttons */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
-          <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
-          <ToolbarButton icon={Save} label="Save" onClick={handleSave} />
-
-          {/* Export Dropdown */}
-          <div className="relative">
-            <ToolbarButton icon={Download} label="Export" onClick={() => setShowExport(!showExport)} />
-            {showExport && (
-              <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl z-50 overflow-hidden">
-                {exportFormats.map((fmt) => (
-                  <button
-                    key={fmt.id}
-                    onClick={() => handleExport(fmt.id)}
-                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+          <div className="flex-1 overflow-y-auto">
+            {diagramsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+              </div>
+            ) : filteredDiagrams.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <FolderOpen className="h-8 w-8 text-dark-300 dark:text-dark-600 mb-2" />
+                <p className="text-xs text-dark-500">
+                  {searchQuery ? 'No diagrams match your search' : 'No saved diagrams yet'}
+                </p>
+                <p className="text-[10px] text-dark-400 mt-1">
+                  Create a diagram and click Save to store it
+                </p>
+              </div>
+            ) : (
+              <div className="py-2">
+                {filteredDiagrams.map((d) => (
+                  <div
+                    key={d.id}
+                    className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                      currentDiagramId === d.id
+                        ? 'bg-brand-50 dark:bg-brand-950/30 border-l-2 border-brand-500'
+                        : 'hover:bg-dark-50 dark:hover:bg-dark-800 border-l-2 border-transparent'
+                    }`}
+                    onClick={() => loadDiagram(d.id)}
                   >
-                    <fmt.icon className="h-4 w-4 text-dark-400" />
-                    {fmt.label}
-                  </button>
+                    <ImageIcon className="h-4 w-4 shrink-0 text-dark-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-dark-700 dark:text-dark-300 truncate">
+                        {d.title}
+                      </p>
+                      <p className="text-[10px] text-dark-400 flex items-center gap-1">
+                        <Clock className="h-2.5 w-2.5" />
+                        {timeAgo(d.updated_at)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteDiagram(d.id); }}
+                      className="opacity-0 group-hover:opacity-100 rounded p-1 text-dark-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
-
-          <ToolbarButton icon={ZoomOut} label="Zoom Out" onClick={handleZoomOut} />
-          <ToolbarButton icon={ZoomIn} label="Zoom In" onClick={handleZoomIn} />
-
-          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
-
-          <ToolbarButton icon={Trash2} label="Clear" onClick={handleClear} variant="danger" />
-
-          <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
-
-          <ToolbarButton
-            icon={isFullscreen ? Minimize2 : Maximize2}
-            label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            onClick={() => setIsFullscreen(!isFullscreen)}
-          />
-
-          {/* Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
-              title="More Options"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl z-50 overflow-hidden">
-                <button
-                  onClick={handleCopyDiagram}
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
-                >
-                  <Copy className="h-4 w-4" /> Copy Diagram Data
-                </button>
-                <button
-                  onClick={() => { setShowMenu(false); setShowImport(true); }}
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
-                >
-                  <Upload className="h-4 w-4" /> Import Diagram
-                </button>
-                <div className="border-t border-dark-100 dark:border-dark-800" />
-                <a
-                  href="https://www.drawio.com/doc/faq/advanced-shapes"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
-                >
-                  <Eye className="h-4 w-4" /> Shape Library
-                </a>
-                <a
-                  href="https://www.drawio.com/doc/faq/custom-shapes"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
-                >
-                  <PanelLeftOpen className="h-4 w-4" /> Custom Shapes
-                </a>
-              </div>
-            )}
+          <div className="p-3 border-t border-dark-200 dark:border-dark-800 text-[10px] text-dark-400 text-center">
+            {savedDiagrams.length} diagram{savedDiagrams.length !== 1 ? 's' : ''} saved
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Editor Area */}
-      <div className="flex-1 relative min-h-0 bg-dark-100 dark:bg-dark-950">
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-dark-50 dark:bg-dark-950">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-600 mb-4" />
-            <p className="text-sm text-dark-500">Loading Diagram Editor...</p>
-            <p className="text-xs text-dark-400 mt-1">Full-featured editor with all shapes & libraries</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-            <AlertCircle className="h-10 w-10 text-red-400 mb-3" />
-            <p className="text-sm text-dark-600 dark:text-dark-400">{error}</p>
+      {/* Main Editor Area */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Header Toolbar */}
+        <div className="flex items-center gap-2 border-b border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 px-4 py-2 shrink-0">
+          {!showSavedList && !isFullscreen && (
             <button
-              onClick={() => { setError(null); setLoading(true); }}
-              className="mt-3 btn btn-primary text-sm"
+              onClick={() => setShowSavedList(true)}
+              className="rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+              title="Show saved diagrams"
             >
-              Try Again
+              <PanelLeftOpen className="h-4 w-4" />
             </button>
+          )}
+
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+            <ImageIcon className="h-4 w-4" />
           </div>
-        )}
 
-        <iframe
-          ref={iframeRef}
-          src={DRAWIO_URL}
-          className="w-full h-full border-0"
-          title="CNS IT Diagram Editor"
-          onLoad={() => setLoading(false)}
-          onError={() => { setError('Failed to load diagram editor'); setLoading(false); }}
-          style={{ minHeight: '400px' }}
-        />
+          {/* Title */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {isEditingTitle ? (
+              <input
+                type="text"
+                value={diagramTitle}
+                onChange={(e) => setDiagramTitle(e.target.value)}
+                onBlur={() => setIsEditingTitle(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
+                className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none text-dark-900 dark:text-dark-100"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => setIsEditingTitle(true)}
+                className="text-sm font-semibold text-dark-900 dark:text-dark-100 hover:text-brand-600 dark:hover:text-brand-400 truncate"
+                title="Click to rename"
+              >
+                {diagramTitle}
+              </button>
+            )}
+            {hasUnsaved && (
+              <span className="relative inline-flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-yellow-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+              </span>
+            )}
+            {currentDiagramId && (
+              <span className="text-[10px] text-dark-400">ID: {currentDiagramId}</span>
+            )}
+          </div>
 
-        {/* Branding */}
-        <div className="absolute bottom-2 right-3 text-[10px] text-dark-300 dark:text-dark-700 pointer-events-none select-none">
-          CNS IT Diagram Editor &middot; <a href="https://cns.al" className="hover:text-brand-500">cns.al</a>
+          <div className="flex-1" />
+
+          {/* Toolbar Buttons */}
+          <div className="flex items-center gap-1">
+            <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
+            <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
+            <ToolbarButton
+              icon={Save}
+              label="Save to CNS IT"
+              onClick={saveDiagram}
+              disabled={saving}
+            />
+
+            {/* Export Dropdown */}
+            <div className="relative">
+              <ToolbarButton icon={HardDrive} label="Export to PC" onClick={() => setShowExport(!showExport)} />
+              {showExport && (
+                <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl z-50 overflow-hidden">
+                  <div className="px-3 py-2 text-[10px] font-semibold text-dark-400 uppercase tracking-wider">
+                    Export to PC
+                  </div>
+                  {exportFormats.map((fmt) => (
+                    <button
+                      key={fmt.id}
+                      onClick={() => exportToPC(fmt.id)}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+                    >
+                      <fmt.icon className="h-4 w-4 text-dark-400" />
+                      {fmt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
+            <ToolbarButton icon={ZoomOut} label="Zoom Out" onClick={handleZoomOut} />
+            <ToolbarButton icon={ZoomIn} label="Zoom In" onClick={handleZoomIn} />
+
+            <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
+            <ToolbarButton icon={Trash2} label="Clear" onClick={handleClear} variant="danger" />
+
+            <div className="w-px h-6 bg-dark-200 dark:bg-dark-700 mx-1" />
+
+            <ToolbarButton
+              icon={isFullscreen ? Minimize2 : Maximize2}
+              label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              onClick={() => setIsFullscreen(!isFullscreen)}
+            />
+
+            {/* Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="rounded-lg p-2 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800 transition-colors"
+                title="More Options"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      exportToPC('xml');
+                    }}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
+                  >
+                    <Download className="h-4 w-4" /> Download .drawio
+                  </button>
+                  <button
+                    onClick={() => { setShowMenu(false); setShowImport(true); }}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
+                  >
+                    <Upload className="h-4 w-4" /> Import Diagram
+                  </button>
+                  <div className="border-t border-dark-100 dark:border-dark-800" />
+                  <a
+                    href="https://cns.al"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-800"
+                  >
+                    <ExternalLink className="h-4 w-4" /> CNS Solutions
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Editor Area */}
+        <div className="flex-1 relative min-h-0 bg-dark-100 dark:bg-dark-950">
+          {loading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-dark-50 dark:bg-dark-950">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-600 mb-4" />
+              <p className="text-sm text-dark-500">Loading Diagram Editor...</p>
+              <p className="text-xs text-dark-400 mt-1">Full-featured editor with all shapes & libraries</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+              <AlertCircle className="h-10 w-10 text-red-400 mb-3" />
+              <p className="text-sm text-dark-600 dark:text-dark-400">{error}</p>
+              <button
+                onClick={() => { setError(null); setLoading(true); }}
+                className="mt-3 btn btn-primary text-sm"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          <iframe
+            ref={iframeRef}
+            src={DRAWIO_URL}
+            className="w-full h-full border-0"
+            title="CNS IT Diagram Editor"
+            onLoad={() => setLoading(false)}
+            onError={() => { setError('Failed to load diagram editor'); setLoading(false); }}
+            style={{ minHeight: '400px' }}
+          />
+
+          {/* Branding */}
+          <div className="absolute bottom-2 right-3 text-[10px] text-dark-300 dark:text-dark-700 pointer-events-none select-none">
+            CNS IT Diagram Editor &middot; <a href="https://cns.al" className="hover:text-brand-500">cns.al</a>
+          </div>
         </div>
       </div>
 
@@ -367,16 +634,20 @@ export default function DiagramPage() {
   );
 }
 
-function ToolbarButton({ icon: Icon, label, onClick, variant = 'default' }: {
+function ToolbarButton({ icon: Icon, label, onClick, variant = 'default', disabled = false }: {
   icon: typeof X;
   label: string;
   onClick: () => void;
   variant?: 'default' | 'danger';
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`rounded-lg p-2 transition-colors ${
+        disabled ? 'opacity-50 cursor-not-allowed' : ''
+      } ${
         variant === 'danger'
           ? 'text-dark-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30'
           : 'text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800'

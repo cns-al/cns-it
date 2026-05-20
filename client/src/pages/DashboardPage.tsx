@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 import {
   FolderOpen, Code2, Clock, ArrowRight, FileCode, Heart, Pin, Globe,
   Zap, TrendingUp, BarChart3, Plus, Search, Eye, Maximize2, Minimize2,
-  Loader2, Tag, ChevronRight, Hash
+  Loader2, Tag, ChevronRight, Hash, Image as ImageIcon, Trash2
 } from 'lucide-react';
 
 interface Snippet {
@@ -21,13 +22,21 @@ interface Snippet {
   fragments?: { file_name: string; language: string; code: string }[];
 }
 
+interface Diagram {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [recentSnippets, setRecentSnippets] = useState<Snippet[]>([]);
+  const [recentDiagrams, setRecentDiagrams] = useState<Diagram[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pinned: 0, favorites: 0, public: 0 });
+  const [stats, setStats] = useState({ total: 0, pinned: 0, favorites: 0, public: 0, diagrams: 0 });
 
   useEffect(() => {
     loadDashboard();
@@ -36,18 +45,30 @@ export default function DashboardPage() {
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/snippets?sortBy=newest&limit=12');
-      const data = await res.json();
-      const snippets = (data.data || []).map((s: any) => ({
+      const [snippetsRes, diagramsRes] = await Promise.all([
+        api.get('/snippets?sortBy=newest&limit=12'),
+        api.get('/diagrams?limit=6').catch(() => null),
+      ]);
+      const snippetsData = await snippetsRes.json();
+      const snippets = (snippetsData.data || []).map((s: any) => ({
         ...s,
         categories: s.categories ? s.categories.split(',').filter(Boolean) : [],
       }));
       setRecentSnippets(snippets);
+      let diagramsTotal = 0;
+      let diagramsList: Diagram[] = [];
+      if (diagramsRes) {
+        const diagramsData = await diagramsRes.json();
+        diagramsTotal = diagramsData.total || 0;
+        diagramsList = diagramsData.data || [];
+        setRecentDiagrams(diagramsList);
+      }
       setStats({
-        total: data.total || snippets.length,
+        total: snippetsData.total || snippets.length,
         pinned: snippets.filter((s: Snippet) => s.is_pinned).length,
         favorites: snippets.filter((s: Snippet) => s.is_favorite).length,
         public: snippets.filter((s: Snippet) => s.is_public).length,
+        diagrams: diagramsTotal,
       });
     } catch (err) {
       console.error('Failed to load dashboard:', err);
@@ -96,12 +117,12 @@ export default function DashboardPage() {
       change: `${stats.total} saved`,
     },
     {
-      label: 'Pinned',
-      value: stats.pinned,
-      icon: Pin,
-      color: 'bg-indigo-50 dark:bg-indigo-950/30',
-      iconColor: 'text-indigo-600 dark:text-indigo-400',
-      change: 'quick access',
+      label: 'Diagrams',
+      value: stats.diagrams,
+      icon: ImageIcon,
+      color: 'bg-violet-50 dark:bg-violet-950/30',
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      change: 'saved',
     },
     {
       label: 'Favorites',
@@ -240,6 +261,64 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Recent Diagrams */}
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-dark-400" />
+                  <h2 className="text-sm font-semibold text-dark-900 dark:text-dark-100">Recent Diagrams</h2>
+                  <span className="badge badge-brand">{recentDiagrams.length}</span>
+                </div>
+                <button
+                  onClick={() => navigate('/diagram')}
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+                >
+                  Open Editor
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+
+              {recentDiagrams.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-dark-200 dark:border-dark-800 py-12 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-dark-100 dark:bg-dark-800">
+                    <ImageIcon className="h-6 w-6 text-dark-400" />
+                  </div>
+                  <h3 className="text-sm font-medium text-dark-900 dark:text-dark-100">No diagrams yet</h3>
+                  <p className="mt-1 max-w-xs text-xs text-dark-400">
+                    Create your first diagram in the Diagram Editor
+                  </p>
+                  <button
+                    onClick={() => navigate('/diagram')}
+                    className="mt-4 flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-xs font-medium text-white hover:bg-brand-700 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Open Diagram Editor
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {recentDiagrams.map((d) => (
+                    <DiagramCard
+                      key={d.id}
+                      diagram={d}
+                      timeAgo={timeAgo}
+                      onOpen={() => navigate(`/diagram/${d.id}`)}
+                      onDelete={async () => {
+                        if (!confirm(`Delete "${d.title}"?`)) return;
+                        try {
+                          await api.delete(`/diagrams/${d.id}`);
+                          toast.success('Diagram deleted');
+                          loadDashboard();
+                        } catch {
+                          toast.error('Failed to delete');
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -353,6 +432,63 @@ function SnippetCard({
               onClick={onNavigate}
               className="rounded-md p-1 text-dark-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors"
               title="Open snippet"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagramCard({
+  diagram,
+  timeAgo,
+  onOpen,
+  onDelete,
+}: {
+  diagram: Diagram;
+  timeAgo: (d: string) => string;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group rounded-xl border border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 transition-all duration-200 hover:border-violet-300 dark:hover:border-violet-700 hover:shadow-sm">
+      <div className="p-4">
+        {/* Header */}
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/30">
+              <ImageIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <button
+              onClick={onOpen}
+              className="line-clamp-1 text-sm font-semibold text-dark-900 dark:text-dark-100 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-left"
+            >
+              {diagram.title}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-3 flex items-center justify-between border-t border-dark-100 dark:border-dark-800 pt-3">
+          <span className="flex items-center gap-1 text-xs text-dark-400">
+            <Clock className="h-3 w-3" />
+            {timeAgo(diagram.updated_at)}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onDelete}
+              className="rounded-md p-1 text-dark-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors opacity-0 group-hover:opacity-100"
+              title="Delete diagram"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={onOpen}
+              className="rounded-md p-1 text-dark-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors"
+              title="Open in editor"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>

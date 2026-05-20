@@ -8,6 +8,7 @@ import shareRoutes from './routes/shareRoutes.js';
 import publicRoutes from './routes/publicRoutes.js';
 import apiKeyRoutes from './routes/apiKeyRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import diagramRoutes from './routes/diagramRoutes.js';
 import { authenticateToken } from './middleware/auth.js';
 import { authenticateApiKey } from './middleware/apiKeyAuth.js';
 import { requireAdmin } from './middleware/adminAuth.js';
@@ -136,7 +137,7 @@ function proxyDrawioAsset(req, res) {
 const app = express();
 const PORT = 5000;
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.set('trust proxy', true);
 
@@ -158,6 +159,7 @@ app.use(
 app.use(`${basePath}/api/share`, authenticateToken, shareRoutes);
 app.use(`${basePath}/api/public/snippets`, publicRoutes);
 app.use(`${basePath}/api/admin`, authenticateToken, requireAdmin, adminRoutes);
+app.use(`${basePath}/api/diagrams`, authenticateToken, diagramRoutes);
 
 // Proxy draw.io requests
 app.all(`${basePath}/drawio/*`, proxyDrawio);

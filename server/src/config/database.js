@@ -107,7 +107,18 @@ export function initializeDatabase() {
       FOREIGN KEY (snippet_id) REFERENCES snippets(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS diagrams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT 'Untitled Diagram',
+      xml_data TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_snippets_user_id ON snippets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_diagrams_user_id ON diagrams(user_id);
     CREATE INDEX IF NOT EXISTS idx_snippets_is_public ON snippets(is_public);
     CREATE INDEX IF NOT EXISTS idx_fragments_snippet_id ON fragments(snippet_id);
     CREATE INDEX IF NOT EXISTS idx_steps_snippet_id ON steps(snippet_id);

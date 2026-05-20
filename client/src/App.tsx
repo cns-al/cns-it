@@ -47,6 +47,7 @@ function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="diagram" element={<DiagramPage />} />
+        <Route path="diagram/:id" element={<DiagramPage />} />
         <Route path="snippets" element={<SnippetsPage />} />
         <Route path="snippets/:id" element={<SnippetViewPage />} />
         <Route path="recycle" element={<RecycleBinPage />} />
