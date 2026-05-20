@@ -1,5 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import http from 'http';
 import { initializeDatabase, shutdownDatabase } from './config/database.js';
 import snippetRoutes from './routes/snippetRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -14,6 +15,43 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import Logger from './logger.js';
+
+// draw.io proxy configuration
+const DRAWIO_HOST = process.env.DRAWIO_HOST || 'cns-drawio';
+const DRAWIO_PORT = process.env.DRAWIO_PORT || 8080;
+
+// Simple HTTP proxy for draw.io
+function proxyDrawio(req, res) {
+  const basePath = process.env.BASE_PATH || '';
+  // Strip /drawio prefix from the original URL
+  const originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}/drawio`), '');
+  const options = {
+    hostname: DRAWIO_HOST,
+    port: DRAWIO_PORT,
+    path: originalUrl || '/',
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${DRAWIO_HOST}:${DRAWIO_PORT}`
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    // Remove any frame-blocking headers
+    const headers = { ...proxyRes.headers };
+    delete headers['x-frame-options'];
+    delete headers['content-security-policy'];
+    res.writeHead(proxyRes.statusCode, headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    Logger.error('draw.io proxy error:', err);
+    res.status(502).json({ error: 'Diagram editor unavailable' });
+  });
+
+  req.pipe(proxyReq);
+}
 
 const app = express();
 const PORT = 5000;
@@ -40,6 +78,10 @@ app.use(
 app.use(`${basePath}/api/share`, authenticateToken, shareRoutes);
 app.use(`${basePath}/api/public/snippets`, publicRoutes);
 app.use(`${basePath}/api/admin`, authenticateToken, requireAdmin, adminRoutes);
+
+// Proxy draw.io requests
+app.all(`${basePath}/drawio/*`, proxyDrawio);
+app.all(`${basePath}/drawio`, proxyDrawio);
 
 app.get('/', (req, res, next) => {
   if (basePath) {

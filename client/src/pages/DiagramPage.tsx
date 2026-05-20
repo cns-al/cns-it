@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const DRAWIO_URL = 'https://app.diagrams.net/?proto=json&db=0&odp=0&configure=1&dark=0&ui=atlas&spin=1&p=0&noembed=0';
+const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?proto=json&db=0&odp=0&configure=1&dark=0&ui=atlas&spin=1&p=0&noembed=0`;
 
 function downloadFile(content: string, filename: string) {
   const blob = new Blob([content], { type: 'application/octet-stream' });
