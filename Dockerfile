@@ -20,11 +20,9 @@ WORKDIR /app
 
 RUN groupadd -g 1001 -r nodejs && useradd -u 1001 -r -g nodejs cnsit && apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/server/package*.json ./server/
-RUN cd server && npm ci --omit=dev && npm cache clean --force
-
-COPY --from=build /app/server/src ./server/src
-# Copy pre-built client from build context (built locally before docker build)
+# Copy pre-built server (including compiled node_modules) from build stage
+COPY --from=build /app/server ./server
+# Copy pre-built client from build context
 COPY client/build ./client/build
 
 RUN chown -R cnsit:nodejs /app
