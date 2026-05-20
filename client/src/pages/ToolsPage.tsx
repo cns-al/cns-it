@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Code2, Hash, Key, Link2, Eye, Zap, Palette, Globe, Terminal, Database, Lock, FileText, Calculator, Copy as CopyIcon } from 'lucide-react';
+import { Search, Code2, Hash, Key, Link2, Eye, Zap, Palette, Globe, Terminal, Database, Lock, FileText, Calculator, Copy as CopyIcon, X } from 'lucide-react';
+import { toolComponents } from './ToolViewPage';
 
 const toolCategories = [
   {
@@ -133,8 +133,8 @@ const toolCategories = [
 ];
 
 export default function ToolsPage() {
-  const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [activeTool, setActiveTool] = useState<{ id: string; name: string } | null>(null);
 
   const filteredCategories = toolCategories.map((cat) => ({
     ...cat,
@@ -190,7 +190,7 @@ export default function ToolsPage() {
                 {category.tools.map((tool) => (
                   <button
                     key={tool.id}
-                    onClick={() => navigate(`/tools/${tool.id}`)}
+                    onClick={() => setActiveTool({ id: tool.id, name: tool.name })}
                     className="group text-left rounded-xl border border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 p-4 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-sm transition-all"
                   >
                     <h3 className="text-sm font-medium text-dark-900 dark:text-dark-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
@@ -208,6 +208,44 @@ export default function ToolsPage() {
               <Search className="mb-4 h-10 w-10 text-dark-300 dark:text-dark-600" />
               <h3 className="text-lg font-medium text-dark-900 dark:text-dark-100">No tools found</h3>
               <p className="mt-1 text-sm text-dark-400">Try a different search term</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tool Modal */}
+      {activeTool && (
+        <ToolModal toolId={activeTool.id} toolName={activeTool.name} onClose={() => setActiveTool(null)} />
+      )}
+    </div>
+  );
+}
+
+function ToolModal({ toolId, toolName, onClose }: { toolId: string; toolName: string; onClose: () => void }) {
+  const ToolComponent = toolComponents[toolId]?.component;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl border border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 border-b border-dark-200 dark:border-dark-800 px-6 py-4 shrink-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/30">
+            <Zap className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+          </div>
+          <h2 className="text-base font-semibold text-dark-900 dark:text-dark-100">{toolName}</h2>
+          <div className="flex-1" />
+          <button onClick={onClose} className="rounded-lg p-1.5 text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
+          {ToolComponent ? <ToolComponent /> : (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Zap className="mb-3 h-10 w-10 text-dark-300 dark:text-dark-600" />
+              <h3 className="text-lg font-medium text-dark-900 dark:text-dark-100">Coming Soon</h3>
+              <p className="mt-1 text-sm text-dark-400">This tool is under development</p>
             </div>
           )}
         </div>

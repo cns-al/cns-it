@@ -3,12 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check, RefreshCw, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function ToolViewPage() {
-  const { toolId } = useParams();
-  const navigate = useNavigate();
-  if (!toolId) return null;
-
-  const toolComponents: Record<string, { name: string; component: any }> = {
+export const toolComponents: Record<string, { name: string; component: any }> = {
     'base64': { name: 'Base64 Encode/Decode', component: Base64Tool },
     'url-encode': { name: 'URL Encode/Decode', component: UrlEncodeTool },
     'case': { name: 'Case Converter', component: CaseConverterTool },
@@ -60,7 +55,12 @@ export default function ToolViewPage() {
     'encryption': { name: 'Text Encryption', component: EncryptionTool },
     'mac': { name: 'MAC Address Generator', component: MacTool },
     'subnet': { name: 'Subnet Calculator', component: SubnetTool },
-  };
+};
+
+export default function ToolViewPage() {
+  const { toolId } = useParams();
+  const navigate = useNavigate();
+  if (!toolId) return null;
 
   const tool = toolComponents[toolId];
 
