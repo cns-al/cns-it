@@ -16,10 +16,12 @@ async function request(path: string, options: RequestInit = {}): Promise<Respons
       headers,
     });
 
-    // Handle 401 - token expired or invalid
+    // Handle 401 - token expired or invalid (but not on login page)
     if (res.status === 401) {
       localStorage.removeItem('cnsit_token');
-      window.location.href = `${BASE_URL}/login`;
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = `${BASE_URL}/login`;
+      }
       throw new Error('Session expired');
     }
 

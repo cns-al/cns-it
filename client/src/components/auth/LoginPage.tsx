@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Code2, Loader2 } from 'lucide-react';
+import { Code2, Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -9,15 +9,22 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
     try {
       await login(username, password);
       navigate('/snippets');
-    } catch {
-      // error shown by toast
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Login failed';
+      if (!msg.includes('Too many')) {
+        setError(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -40,6 +47,12 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-dark-200 dark:border-dark-800 bg-white dark:bg-dark-900 p-8 shadow-sm">
           <h2 className="mb-6 text-lg font-semibold text-dark-900 dark:text-dark-100">Sign in</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-3 py-2.5 text-sm text-red-700 dark:text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">
                 Username

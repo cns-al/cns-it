@@ -212,7 +212,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+if (process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', true);
 }
 
