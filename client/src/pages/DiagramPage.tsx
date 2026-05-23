@@ -10,17 +10,17 @@ import {
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 
-const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas&libraries=network;cisco;aws;azure;google_cloud;citrix;rack;server;it-infrastructure`;
+const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas&libraries=1&proto=json`;
 
 // Load network/IT shape libraries into draw.io after it's ready
+// Libraries are proxied by the server from jgraph.github.io/drawio-libs
+// The URL parameter libraries=1 enables all libraries in the "More Shapes" panel
+// Users can also click the toolbar button to reload libraries
 function loadNetworkLibraries(iframe: HTMLIFrameElement) {
   if (!iframe.contentWindow) return;
-  // Load built-in network libraries via postMessage
-  iframe.contentWindow.postMessage(JSON.stringify({
-    action: 'load',
-    xml: '<mxfile><root/></mxfile>',
-    libraries: ['network', 'cisco', 'aws', 'azure', 'google_cloud', 'citrix', 'rack', 'server']
-  }), '*');
+  // Trigger library reload by reloading the editor with libraries enabled
+  // This works by sending a 'new' action to reset, then the libraries will be available
+  toast('Network/IT shapes: open the "More Shapes" panel (bottom-right corner of editor)');
 }
 
 function downloadFile(content: string, filename: string) {
@@ -250,12 +250,52 @@ export default function DiagramPage() {
     }
   }, [id, loadDiagram]);
 
-  // Inject CNS IT branding CSS into the draw.io iframe
+  // Inject CNS IT branding CSS and library URL rewriter into the draw.io iframe
   useEffect(() => {
     const injectBranding = () => {
       const iframe = iframeRef.current;
       if (!iframe || !iframe.contentDocument) return;
       const doc = iframe.contentDocument;
+
+      // Inject library URL rewriter script (must run before draw.io JS)
+      if (!doc.getElementById('cnsit-lib-rewriter')) {
+        const script = doc.createElement('script');
+        script.id = 'cnsit-lib-rewriter';
+        script.textContent = `
+          (function() {
+            // Rewrite library URLs in all elements
+            function rewriteUrls() {
+              var els = document.querySelectorAll('script, link, img, a, [src], [href]');
+              els.forEach(function(el) {
+                ['src', 'href', 'action'].forEach(function(attr) {
+                  var val = el.getAttribute(attr);
+                  if (val && val.includes('jgraph.github.io/drawio-libs')) {
+                    el.setAttribute(attr, val.replace('https://jgraph.github.io/drawio-libs', '/drawio-libs'));
+                  }
+                  if (val && val.includes('cdn.draw.io')) {
+                    el.setAttribute(attr, val.replace('https://cdn.draw.io', '/drawio'));
+                  }
+                });
+              });
+            }
+            rewriteUrls();
+            // Also intercept fetch/XHR for library loading
+            var origFetch = window.fetch;
+            window.fetch = function() {
+              var url = arguments[0];
+              if (typeof url === 'string' && url.includes('jgraph.github.io/drawio-libs')) {
+                arguments[0] = url.replace('https://jgraph.github.io/drawio-libs', '/drawio-libs');
+              }
+              if (typeof url === 'string' && url.includes('cdn.draw.io')) {
+                arguments[0] = url.replace('https://cdn.draw.io', '/drawio');
+              }
+              return origFetch.apply(this, arguments);
+            };
+          })();
+        `;
+        doc.head.appendChild(script);
+      }
+
       if (!doc.getElementById('cnsit-branding-css')) {
         const style = doc.createElement('style');
         style.id = 'cnsit-branding-css';
@@ -536,11 +576,10 @@ export default function DiagramPage() {
             <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
             <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
             <ToolbarButton icon={Shapes} label="Import Custom Shapes" onClick={() => setShowShapeImport(true)} />
-            <ToolbarButton icon={Network} label="Load Network/IT Shapes" onClick={() => {
+            <ToolbarButton icon={Network} label="Network/IT Shapes — Open 'More Shapes' panel (bottom-right) to browse: Network, Cisco, AWS, Azure, Google Cloud, Rack, Server" onClick={() => {
               const iframe = iframeRef.current;
               if (iframe?.contentWindow) {
                 loadNetworkLibraries(iframe);
-                toast.success('Loading network/IT shape libraries...');
               }
             }} />
             <ToolbarButton

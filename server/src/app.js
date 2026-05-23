@@ -23,6 +23,41 @@ import Logger from './logger.js';
 const DRAWIO_HOST = process.env.DRAWIO_HOST || 'cns-drawio';
 const DRAWIO_PORT = process.env.DRAWIO_PORT || 8080;
 
+// CDN proxy for draw.io shape libraries (network, cisco, aws, azure, etc.)
+// draw.io loads library XML from jgraph.github.io — we proxy it locally
+const DRAWIO_LIBS_HOST = 'jgraph.github.io';
+const DRAWIO_LIBS_PATH = '/drawio-libs';
+
+function proxyDrawioLibs(req, res) {
+  const basePath = process.env.BASE_PATH || '';
+  const originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}/drawio-libs`), '');
+  const options = {
+    hostname: DRAWIO_LIBS_HOST,
+    port: 443,
+    path: originalUrl || '/',
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: DRAWIO_LIBS_HOST
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const headers = { ...proxyRes.headers };
+    // Allow caching for library files
+    headers['cache-control'] = 'public, max-age=86400';
+    res.writeHead(proxyRes.statusCode, headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    Logger.error('draw.io libs proxy error:', err);
+    res.status(502).json({ error: 'Shape libraries unavailable' });
+  });
+
+  req.pipe(proxyReq);
+}
+
 // CSS to rebrand draw.io (injected into HTML responses, may be removed by draw.io JS)
 // Actual branding is handled by DiagramPage.tsx injecting CSS into the iframe
 const CNS_DRAWIO_CSS = `
@@ -85,6 +120,9 @@ function proxyDrawio(req, res) {
         html = html.replace(/<meta[^>]*itemprop=[""]description[""][^>]*>/gi, '');
         // Replace remaining draw.io text references (but not in JS code)
         html = html.replace(/draw\.io/gi, 'CNS IT');
+        // Rewrite CDN library URLs to local proxy
+        html = html.replace(/https:\/\/jgraph\.github\.io\/drawio-libs/g, '/drawio-libs');
+        html = html.replace(/https:\/\/cdn\.draw\.io/g, '/drawio');
         // Inject CSS before closing </head> tag
         if (html.includes('</head>')) {
           html = html.replace('</head>', CNS_DRAWIO_CSS + '</head>');
@@ -181,6 +219,10 @@ app.all(`${basePath}/drawio`, proxyDrawio);
 app.all(`${basePath}/js/*`, proxyDrawioAsset);
 app.all(`${basePath}/images/*`, proxyDrawioAsset);
 app.all(`${basePath}/mxgraph.php`, proxyDrawioAsset);
+// Proxy draw.io shape libraries (network, cisco, aws, azure, etc.)
+app.all(`${basePath}/libs/*`, proxyDrawioAsset);
+// Proxy draw.io CDN libraries (jgraph.github.io/drawio-libs)
+app.all(`${basePath}/drawio-libs/*`, proxyDrawioLibs);
 
 app.get('/', (req, res, next) => {
   if (basePath) {
