@@ -118,11 +118,13 @@ function proxyDrawio(req, res) {
         html = html.replace(/<meta[^>]*name=["']Description["'][^>]*>/gi, '');
         html = html.replace(/<meta[^>]*itemprop=[""]name[""][^>]*>/gi, '');
         html = html.replace(/<meta[^>]*itemprop=[""]description[""][^>]*>/gi, '');
-        // Replace remaining draw.io text references (but not in JS code)
-        html = html.replace(/draw\.io/gi, 'CNS IT');
-        // Rewrite CDN library URLs to local proxy
+        // Rewrite CDN/library URLs to local proxy BEFORE text replacement
         html = html.replace(/https:\/\/jgraph\.github\.io\/drawio-libs/g, '/drawio-libs');
-        html = html.replace(/https:\/\/cdn\.draw\.io/g, '/drawio');
+        html = html.replace(/https:\/\/cdn\.draw\.io/g, '/draw');
+        html = html.replace(/https:\/\/app\.diagrams\.net/g, '/draw');
+        html = html.replace(/https:\/\/www\.draw\.io/g, '/draw');
+        // Replace remaining draw.io text references
+        html = html.replace(/draw\.io/gi, 'CNS IT');
         // Inject CSS before closing </head> tag
         if (html.includes('</head>')) {
           html = html.replace('</head>', CNS_DRAWIO_CSS + '</head>');
@@ -223,11 +225,12 @@ app.all(`${basePath}/drawio`, proxyDrawio);
 app.all(`${basePath}/js/*`, proxyDrawioAsset);
 app.all(`${basePath}/images/*`, proxyDrawioAsset);
 app.all(`${basePath}/mxgraph.php`, proxyDrawioAsset);
-// Proxy draw.io shape libraries (network, cisco, aws, azure, etc.)
-app.all(`${basePath}/libs/*`, proxyDrawioAsset);
-// Proxy draw.io stencils (shape libraries bundled with draw.io)
+// Proxy draw.io internal paths (stencils, libs, draw/* — used by draw.io JS)
+app.all(`${basePath}/draw/*`, proxyDrawioAsset);
+app.all(`${basePath}/draw`, proxyDrawioAsset);
 app.all(`${basePath}/stencils/*`, proxyDrawioAsset);
 app.all(`${basePath}/stencils`, proxyDrawioAsset);
+app.all(`${basePath}/libs/*`, proxyDrawioAsset);
 // Proxy draw.io CDN libraries (jgraph.github.io/drawio-libs)
 app.all(`${basePath}/drawio-libs/*`, proxyDrawioLibs);
 

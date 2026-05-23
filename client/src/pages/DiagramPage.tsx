@@ -263,17 +263,24 @@ export default function DiagramPage() {
         script.id = 'cnsit-lib-rewriter';
         script.textContent = `
           (function() {
+            // Rewrite CDN/library URLs to local proxy
+            function rewriteUrl(url) {
+              if (typeof url !== 'string') return url;
+              url = url.replace('https://jgraph.github.io/drawio-libs', '/drawio-libs');
+              url = url.replace('https://cdn.draw.io', '/draw');
+              url = url.replace('https://app.diagrams.net', '/draw');
+              url = url.replace('https://www.draw.io', '/draw');
+              return url;
+            }
             // Rewrite library URLs in all elements
             function rewriteUrls() {
               var els = document.querySelectorAll('script, link, img, a, [src], [href]');
               els.forEach(function(el) {
                 ['src', 'href', 'action'].forEach(function(attr) {
                   var val = el.getAttribute(attr);
-                  if (val && val.includes('jgraph.github.io/drawio-libs')) {
-                    el.setAttribute(attr, val.replace('https://jgraph.github.io/drawio-libs', '/drawio-libs'));
-                  }
-                  if (val && val.includes('cdn.draw.io')) {
-                    el.setAttribute(attr, val.replace('https://cdn.draw.io', '/drawio'));
+                  if (val) {
+                    var rewritten = rewriteUrl(val);
+                    if (rewritten !== val) el.setAttribute(attr, rewritten);
                   }
                 });
               });
@@ -283,12 +290,8 @@ export default function DiagramPage() {
             var origFetch = window.fetch;
             window.fetch = function() {
               var url = arguments[0];
-              if (typeof url === 'string' && url.includes('jgraph.github.io/drawio-libs')) {
-                arguments[0] = url.replace('https://jgraph.github.io/drawio-libs', '/drawio-libs');
-              }
-              if (typeof url === 'string' && url.includes('cdn.draw.io')) {
-                arguments[0] = url.replace('https://cdn.draw.io', '/drawio');
-              }
+              var rewritten = rewriteUrl(url);
+              if (rewritten !== url) arguments[0] = rewritten;
               return origFetch.apply(this, arguments);
             };
           })();
