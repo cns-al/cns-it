@@ -16,8 +16,8 @@ async function request(path: string, options: RequestInit = {}): Promise<Respons
       headers,
     });
 
-    // Handle 401 - token expired or invalid (but not on login page)
-    if (res.status === 401) {
+    // Handle 401 - token expired or invalid (skip for auth endpoints)
+    if (res.status === 401 && !path.startsWith('/auth')) {
       localStorage.removeItem('cnsit_token');
       if (!window.location.pathname.includes('/login')) {
         window.location.href = `${BASE_URL}/login`;
