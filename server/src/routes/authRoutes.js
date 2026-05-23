@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDb } from '../config/database.js';
 import userRepository from '../repositories/userRepository.js';
-import { JWT_SECRET, TOKEN_EXPIRY, ALLOW_NEW_ACCOUNTS, DISABLE_ACCOUNTS, DISABLE_INTERNAL_ACCOUNTS } from '../middleware/auth.js';
+import { JWT_SECRET, TOKEN_EXPIRY, ALLOW_NEW_ACCOUNTS, DISABLE_ACCOUNTS, DISABLE_INTERNAL_ACCOUNTS, authenticateToken } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import Logger from '../logger.js';
 
@@ -122,7 +122,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 });
 
-router.post('/change-password', changePasswordLimiter, async (req, res) => {
+router.post('/change-password', changePasswordLimiter, authenticateToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
@@ -161,6 +161,14 @@ router.get('/status', async (req, res) => {
     Logger.error('Status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.get('/me', authenticateToken, (req, res) => {
+  res.json({
+    id: req.user.id,
+    username: req.user.username,
+    isAdmin: req.user.isAdmin
+  });
 });
 
 export default router;

@@ -27,12 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem('cnsit_token');
     if (token) {
       try {
-        // Decode JWT payload (middle segment) to get user info
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        // Verify token is still valid by calling an API endpoint
-        const res = await api.get('/auth/status');
+        const res = await api.get('/auth/me');
         if (res.ok) {
-          setUser({ id: payload.id, username: payload.username, isAdmin: payload.isAdmin });
+          const data = await res.json();
+          setUser({ id: data.id, username: data.username, isAdmin: data.isAdmin });
         } else {
           localStorage.removeItem('cnsit_token');
         }

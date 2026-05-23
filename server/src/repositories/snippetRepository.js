@@ -64,31 +64,33 @@ const snippetRepository = {
   async getUserSnippets(userId, offset = 0, limit = 50, search = '', language = '', sortBy = 'newest', category = '') {
     const db = getDb();
 
-    let query = `
-      SELECT s.*, u.username,
-        (SELECT COUNT(*) FROM fragments WHERE snippet_id = s.id) as fragment_count,
-        (SELECT COUNT(*) FROM steps WHERE snippet_id = s.id) as step_count,
-        (SELECT GROUP_CONCAT(c.name, ',') FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE sc.snippet_id = s.id) as categories
-      FROM snippets s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.user_id = ? AND s.expiry_date IS NULL
-    `;
+    const whereClauses = ['s.user_id = ?', 's.expiry_date IS NULL'];
     const params = [userId];
 
     if (search) {
-      query += ' AND (s.title LIKE ? OR s.description LIKE ?)';
+      whereClauses.push('(s.title LIKE ? OR s.description LIKE ?)');
       params.push(`%${search}%`, `%${search}%`);
     }
 
     if (language) {
-      query += ' AND s.id IN (SELECT DISTINCT snippet_id FROM fragments WHERE language = ?)';
+      whereClauses.push('s.id IN (SELECT DISTINCT snippet_id FROM fragments WHERE language = ?)');
       params.push(language);
     }
 
     if (category) {
-      query += ' AND s.id IN (SELECT sc.snippet_id FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE c.name = ?)';
+      whereClauses.push('s.id IN (SELECT sc.snippet_id FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE c.name = ?)');
       params.push(category);
     }
+
+    const whereSql = whereClauses.join(' AND ');
+
+    const countRow = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM snippets s
+      JOIN users u ON s.user_id = u.id
+      WHERE ${whereSql}
+    `).get(...params);
+    const total = countRow.total;
 
     const sortMap = {
       newest: 's.updated_at DESC',
@@ -96,11 +98,18 @@ const snippetRepository = {
       alpha: 's.title ASC',
       reverseAlpha: 's.title DESC'
     };
-    query += ` ORDER BY ${sortMap[sortBy] || sortMap.newest} LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
 
-    const snippets = db.prepare(query).all(...params);
-    const total = db.prepare(query.replace(/ORDER BY.*$/, 'LIMIT -1 OFFSET -1').replace(/LIMIT \? OFFSET \?/, '')).all(...params.slice(0, -2)).length;
+    const snippets = db.prepare(`
+      SELECT s.*, u.username,
+        (SELECT COUNT(*) FROM fragments WHERE snippet_id = s.id) as fragment_count,
+        (SELECT COUNT(*) FROM steps WHERE snippet_id = s.id) as step_count,
+        (SELECT GROUP_CONCAT(c.name, ',') FROM snippet_categories sc JOIN categories c ON sc.category_id = c.id WHERE sc.snippet_id = s.id) as categories
+      FROM snippets s
+      JOIN users u ON s.user_id = u.id
+      WHERE ${whereSql}
+      ORDER BY ${sortMap[sortBy] || sortMap.newest}
+      LIMIT ? OFFSET ?
+    `).all(...params, limit, offset);
 
     return { data: snippets, total };
   },
@@ -108,21 +117,32 @@ const snippetRepository = {
   async update(id, userId, updates) {
     const db = getDb();
     const stmt = db.transaction(() => {
+      const setClauses = ['updated_at = CURRENT_TIMESTAMP'];
+      const params = [];
+
       if (updates.title !== undefined) {
-        db.prepare('UPDATE snippets SET title = ? WHERE id = ? AND user_id = ?').run(updates.title, id, userId);
+        setClauses.push('title = ?');
+        params.push(updates.title);
       }
       if (updates.description !== undefined) {
-        db.prepare('UPDATE snippets SET description = ? WHERE id = ? AND user_id = ?').run(updates.description, id, userId);
+        setClauses.push('description = ?');
+        params.push(updates.description);
       }
       if (updates.isPublic !== undefined) {
-        db.prepare('UPDATE snippets SET is_public = ? WHERE id = ? AND user_id = ?').run(updates.isPublic ? 1 : 0, id, userId);
+        setClauses.push('is_public = ?');
+        params.push(updates.isPublic ? 1 : 0);
       }
       if (updates.isPinned !== undefined) {
-        db.prepare('UPDATE snippets SET is_pinned = ? WHERE id = ? AND user_id = ?').run(updates.isPinned ? 1 : 0, id, userId);
+        setClauses.push('is_pinned = ?');
+        params.push(updates.isPinned ? 1 : 0);
       }
       if (updates.isFavorite !== undefined) {
-        db.prepare('UPDATE snippets SET is_favorite = ? WHERE id = ? AND user_id = ?').run(updates.isFavorite ? 1 : 0, id, userId);
+        setClauses.push('is_favorite = ?');
+        params.push(updates.isFavorite ? 1 : 0);
       }
+
+      params.push(id, userId);
+      db.prepare(`UPDATE snippets SET ${setClauses.join(', ')} WHERE id = ? AND user_id = ?`).run(...params);
 
       if (updates.fragments !== undefined) {
         db.prepare('DELETE FROM fragments WHERE snippet_id = ?').run(id);
@@ -153,8 +173,6 @@ const snippetRepository = {
           db.prepare('INSERT OR IGNORE INTO snippet_categories (snippet_id, category_id) VALUES (?, ?)').run(id, category.id);
         });
       }
-
-      db.prepare('UPDATE snippets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
     });
 
     stmt();

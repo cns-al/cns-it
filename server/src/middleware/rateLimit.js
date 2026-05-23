@@ -27,6 +27,8 @@ export function rateLimit({ max = 10, windowMs = 60_000, message = 'Too many req
     entry.count++;
 
     if (entry.count > max) {
+      const retryAfter = Math.ceil((entry.windowStart + entry.windowMs - now) / 1000);
+      res.setHeader('Retry-After', retryAfter);
       return res.status(429).json({ error: message });
     }
 

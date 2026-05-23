@@ -67,13 +67,13 @@ const authenticateToken = async (req, res, next) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
+  try {
+    const user = await jwt.verify(token, JWT_SECRET);
     req.user = user;
     next();
-  });
+  } catch (err) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
 };
 
 export {

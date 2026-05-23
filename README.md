@@ -46,7 +46,7 @@
 - **Saved diagrams sidebar** — Browse, search, and load previous diagrams
 - **Fullscreen mode** — Distraction-free editing
 
-### 55+ Developer Tools
+### 52 Developer Tools
 All tools run client-side — no server overhead, instant results:
 
 | Category | Tools |
@@ -159,7 +159,7 @@ cd client && npm install && cd ..
 # Start development servers
 npm run dev
 
-# Frontend: http://localhost:5173
+# Frontend: http://localhost:3000
 # API: http://localhost:5000/api
 ```
 
@@ -440,7 +440,7 @@ List user's snippets.
 |-------|------|---------|-------------|
 | `search` | string | — | Full-text search |
 | `category` | string | — | Filter by category |
-| `sortBy` | string | `newest` | `newest`, `oldest`, `az`, `za` |
+| `sortBy` | string | `newest` | `newest`, `oldest`, `alpha`, `reverseAlpha` |
 | `limit` | int | `20` | Max results |
 
 ```json
