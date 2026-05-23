@@ -74,9 +74,12 @@ The route used `req.user` but had no auth middleware. Now protected with `authen
 - **Tool count**: README now says "52 Developer Tools"
 - **Vite dev port**: README now says `:3000` (matches `vite.config.ts`)
 
-### Port 5000 is restricted to NPM + NetBird only (UFW)
+### Port 5000 is restricted to NPM + NetBird only (UFW + iptables DOCKER-USER)
 
-Only `192.168.1.3` (Nginx Proxy Manager) and `100.64.0.0/10` (NetBird VPN) can reach port 5000. Direct LAN access is blocked.
+Docker bypasses UFW by inserting iptables rules above UFW chains. Both layers enforce the restriction:
+- **UFW**: Only `192.168.1.3` (Nginx Proxy Manager) and `100.64.0.0/10` (NetBird VPN) can reach port 5000
+- **iptables DOCKER-USER**: Same rules applied at Docker's iptables level (persists via `restore-docker-firewall.service`)
+- Direct LAN access to port 5000 is blocked at both layers
 
 ### Vault master key never persists (security)
 
