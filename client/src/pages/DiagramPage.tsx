@@ -5,12 +5,23 @@ import {
   ZoomIn, ZoomOut, Maximize2, Minimize2, Eye,
   Loader2, Copy, AlertCircle, Image as ImageIcon,
   FileText, Code2, ChevronDown, PanelLeftClose, PanelLeftOpen,
-  FolderOpen, Clock, Search, ExternalLink, HardDrive, Shapes, Puzzle
+  FolderOpen, Clock, Search, ExternalLink, HardDrive, Shapes, Puzzle, Network
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 
-const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas`;
+const DRAWIO_URL = `${(window as any).__BASE_PATH__ || ''}/drawio/?ui=atlas&libraries=network;cisco;aws;azure;google_cloud;citrix;rack;server;it-infrastructure`;
+
+// Load network/IT shape libraries into draw.io after it's ready
+function loadNetworkLibraries(iframe: HTMLIFrameElement) {
+  if (!iframe.contentWindow) return;
+  // Load built-in network libraries via postMessage
+  iframe.contentWindow.postMessage(JSON.stringify({
+    action: 'load',
+    xml: '<mxfile><root/></mxfile>',
+    libraries: ['network', 'cisco', 'aws', 'azure', 'google_cloud', 'citrix', 'rack', 'server']
+  }), '*');
+}
 
 function downloadFile(content: string, filename: string) {
   const blob = new Blob([content], { type: 'application/octet-stream' });
@@ -217,6 +228,17 @@ export default function DiagramPage() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [handleMessage]);
+
+  // Load network/IT shape libraries when iframe is ready
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (iframe) {
+      iframe.addEventListener('load', () => {
+        // Delay to ensure draw.io is fully initialized
+        setTimeout(() => loadNetworkLibraries(iframe), 2000);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     loadDiagrams();
@@ -514,6 +536,13 @@ export default function DiagramPage() {
             <ToolbarButton icon={Plus} label="New Diagram" onClick={handleNewDiagram} />
             <ToolbarButton icon={Upload} label="Import Diagram" onClick={() => setShowImport(true)} />
             <ToolbarButton icon={Shapes} label="Import Custom Shapes" onClick={() => setShowShapeImport(true)} />
+            <ToolbarButton icon={Network} label="Load Network/IT Shapes" onClick={() => {
+              const iframe = iframeRef.current;
+              if (iframe?.contentWindow) {
+                loadNetworkLibraries(iframe);
+                toast.success('Loading network/IT shape libraries...');
+              }
+            }} />
             <ToolbarButton
               icon={Save}
               label="Save to CNS IT"
