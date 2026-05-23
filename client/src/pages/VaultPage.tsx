@@ -37,7 +37,7 @@ const typeColors: Record<VaultType, string> = {
 export default function VaultPage() {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [masterKey, setMasterKey] = useState('');
+  const [masterKey, setMasterKey] = useState(() => sessionStorage.getItem('cnsit_vault_masterkey') || '');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -61,6 +61,29 @@ export default function VaultPage() {
   }, []);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
+
+  // Persist master key in sessionStorage (cleared on tab close)
+  useEffect(() => {
+    if (masterKey) {
+      sessionStorage.setItem('cnsit_vault_masterkey', masterKey);
+    } else {
+      sessionStorage.removeItem('cnsit_vault_masterkey');
+    }
+    return () => {
+      // Clear sensitive data on component unmount
+      sessionStorage.removeItem('cnsit_vault_masterkey');
+      sessionStorage.removeItem('cnsit_vault_decrypted');
+    };
+  }, [masterKey]);
+
+  // Clear decrypted values on page unload
+  useEffect(() => {
+    const handleUnload = () => {
+      sessionStorage.clear();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []);
 
   const searchEntries = async () => {
     if (!search.trim()) { fetchEntries(); return; }
@@ -127,6 +150,14 @@ export default function VaultPage() {
     toast.success('Copied to clipboard');
   };
 
+  const clearVaultData = () => {
+    setMasterKey('');
+    setDecryptedValues({});
+    setVisibleValues({});
+    sessionStorage.clear();
+    toast.success('Master key and decrypted values cleared');
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-dark-200 dark:border-dark-800 px-6 py-4">
@@ -154,6 +185,11 @@ export default function VaultPage() {
           <Key className="h-4 w-4 text-dark-400" />
           <input type="password" value={masterKey} onChange={(e) => setMasterKey(e.target.value)}
             placeholder="Master key" className="input text-sm w-48" />
+          {masterKey && (
+            <button onClick={clearVaultData} className="btn btn-secondary text-xs px-2 py-1 text-red-600 hover:text-red-700" title="Clear master key and decrypted values">
+              Clear
+            </button>
+          )}
         </div>
       </div>
 

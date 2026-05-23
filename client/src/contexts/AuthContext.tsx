@@ -82,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('cnsit_token');
+    // Clear vault sensitive data
+    sessionStorage.removeItem('cnsit_vault_masterkey');
+    sessionStorage.removeItem('cnsit_vault_decrypted');
     setUser(null);
     toast.success('Logged out');
   };
