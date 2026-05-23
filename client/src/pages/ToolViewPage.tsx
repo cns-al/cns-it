@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check, RefreshCw, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -304,11 +304,15 @@ function HashTool() {
     }
     setHashes(result);
   };
+  useEffect(() => {
+    const timer = setTimeout(generateHashes, 250);
+    return () => clearTimeout(timer);
+  }, [input]);
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Input Text</label>
-        <textarea value={input} onChange={(e) => { setInput(e.target.value); generateHashes(); }} className="input resize-none" rows={4} placeholder="Enter text to hash..." />
+        <textarea value={input} onChange={(e) => setInput(e.target.value)} className="input resize-none" rows={4} placeholder="Enter text to hash..." />
       </div>
       <div className="space-y-2">
         {Object.entries(hashes).map(([algo, hash]) => (
@@ -802,14 +806,15 @@ function EmojiTool() {
 }
 
 function BinaryTool() {
-  const [input, setInput] = useState('');
-  const toBinary = input.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
-  const toText = input.split(' ').filter(b => b.length === 8).map(b => String.fromCharCode(parseInt(b, 2))).join('');
+  const [textInput, setTextInput] = useState('');
+  const [binaryInput, setBinaryInput] = useState('');
+  const toBinary = textInput.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+  const toText = binaryInput.split(' ').filter(b => b.length === 8).map(b => String.fromCharCode(parseInt(b, 2))).join('');
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Text → Binary</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input" placeholder="Hello" />
+        <input value={textInput} onChange={(e) => setTextInput(e.target.value)} className="input" placeholder="Hello" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100 break-all">{toBinary || '—'}</code>
           <CopyButton text={toBinary} />
@@ -817,7 +822,7 @@ function BinaryTool() {
       </div>
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Binary → Text</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input font-mono" placeholder="01001000 01100101" />
+        <input value={binaryInput} onChange={(e) => setBinaryInput(e.target.value)} className="input font-mono" placeholder="01001000 01100101" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100">{toText || '—'}</code>
           <CopyButton text={toText} />
@@ -828,14 +833,15 @@ function BinaryTool() {
 }
 
 function HexTool() {
-  const [input, setInput] = useState('');
-  const toHex = input.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-  const toText = input.split(' ').filter(h => h.length === 2).map(h => String.fromCharCode(parseInt(h, 16))).join('');
+  const [textInput, setTextInput] = useState('');
+  const [hexInput, setHexInput] = useState('');
+  const toHex = textInput.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+  const toText = hexInput.split(' ').filter(h => h.length === 2).map(h => String.fromCharCode(parseInt(h, 16))).join('');
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Text → Hex</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input" placeholder="Hello" />
+        <input value={textInput} onChange={(e) => setTextInput(e.target.value)} className="input" placeholder="Hello" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100 break-all">{toHex || '—'}</code>
           <CopyButton text={toHex} />
@@ -843,7 +849,7 @@ function HexTool() {
       </div>
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Hex → Text</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input font-mono" placeholder="48 65 6c 6c 6f" />
+        <input value={hexInput} onChange={(e) => setHexInput(e.target.value)} className="input font-mono" placeholder="48 65 6c 6c 6f" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100">{toText || '—'}</code>
           <CopyButton text={toText} />
@@ -854,14 +860,15 @@ function HexTool() {
 }
 
 function UnicodeTool() {
-  const [input, setInput] = useState('');
-  const toUnicode = input.split('').map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
-  const toText = input.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  const [textInput, setTextInput] = useState('');
+  const [unicodeInput, setUnicodeInput] = useState('');
+  const toUnicode = textInput.split('').map(c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
+  const toText = unicodeInput.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Text → Unicode</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input" placeholder="Hello" />
+        <input value={textInput} onChange={(e) => setTextInput(e.target.value)} className="input" placeholder="Hello" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100 break-all">{toUnicode || '—'}</code>
           <CopyButton text={toUnicode} />
@@ -869,7 +876,7 @@ function UnicodeTool() {
       </div>
       <div>
         <label className="mb-1.5 block text-sm font-medium text-dark-700 dark:text-dark-300">Unicode → Text</label>
-        <input value={input} onChange={(e) => setInput(e.target.value)} className="input font-mono" placeholder="\u0048\u0065\u006c\u006c\u006f" />
+        <input value={unicodeInput} onChange={(e) => setUnicodeInput(e.target.value)} className="input font-mono" placeholder="\u0048\u0065\u006c\u006c\u006f" />
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-dark-200 dark:border-dark-700 bg-dark-50 dark:bg-dark-800 px-4 py-3">
           <code className="flex-1 text-sm font-mono text-dark-900 dark:text-dark-100">{toText || '—'}</code>
           <CopyButton text={toText} />

@@ -278,7 +278,7 @@ export default function DiagramPage() {
     if (iframe) {
       iframe.addEventListener('load', injectBranding);
     }
-    const interval = setInterval(injectBranding, 2000);
+    const interval = setInterval(injectBranding, 5000);
     return () => {
       clearInterval(interval);
       if (iframe) {
