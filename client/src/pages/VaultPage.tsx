@@ -37,7 +37,7 @@ const typeColors: Record<VaultType, string> = {
 export default function VaultPage() {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [masterKey, setMasterKey] = useState(() => sessionStorage.getItem('cnsit_vault_masterkey') || '');
+  const [masterKey, setMasterKey] = useState('');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -62,27 +62,13 @@ export default function VaultPage() {
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
-  // Persist master key in sessionStorage (cleared on tab close)
+  // Clear sensitive data when navigating away from vault
   useEffect(() => {
-    if (masterKey) {
-      sessionStorage.setItem('cnsit_vault_masterkey', masterKey);
-    } else {
-      sessionStorage.removeItem('cnsit_vault_masterkey');
-    }
     return () => {
-      // Clear sensitive data on component unmount
-      sessionStorage.removeItem('cnsit_vault_masterkey');
-      sessionStorage.removeItem('cnsit_vault_decrypted');
+      setMasterKey('');
+      setDecryptedValues({});
+      setVisibleValues({});
     };
-  }, [masterKey]);
-
-  // Clear decrypted values on page unload
-  useEffect(() => {
-    const handleUnload = () => {
-      sessionStorage.clear();
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
 
   const searchEntries = async () => {

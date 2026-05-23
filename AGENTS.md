@@ -7,7 +7,8 @@ Self-hosted platform for code snippets, diagrams (draw.io), and 52 client-side d
 | Layer | Tech | Port (dev) | Port (prod) |
 |-------|------|------------|-------------|
 | Client | React 18, TypeScript, Vite, Tailwind | 3000 | — |
-| Server | Express, Node.js (ESM), better-sqlite3 | 5000 | 5000 |
+| Server | Express, Node.js (ESM), better-sqlite3 | 5000 | 5000 (restricted) |
+| Reverse Proxy | Nginx Proxy Manager (192.168.1.3) | — | 443 (HTTPS) |
 | Diagrams | jgraph/draw.io Docker container | — | 8080 (internal) |
 | DB | SQLite (WAL mode) at `data/snippets.db` | — | — |
 
@@ -43,15 +44,15 @@ server/               # Express API (pure JS, ESM)
     app.js            # entrypoint: routes, static serving, draw.io proxy
     config/database.js  # SQLite init, schema, migrations
     middleware/        # auth, adminAuth, apiKeyAuth, rateLimit
-    routes/           # auth, snippets, diagrams, shares, admin, public, apiKeys
-    repositories/     # userRepository, snippetRepository, shareRepository, apiKeyRepository
+    routes/           # auth, snippets, diagrams, shares, admin, public, apiKeys, vaultRoutes
+    repositories/     # userRepository, snippetRepository, shareRepository, apiKeyRepository, vaultRepository
 client/               # React SPA (TypeScript)
   src/
     main.tsx          # entry: BrowserRouter > ThemeProvider > AuthProvider > App
     App.tsx           # routes: login, register, share, public, protected/*
     api/client.ts     # fetch wrapper, JWT header, 401/429 handling
     contexts/         # AuthContext, ThemeContext
-    pages/            # Dashboard, Snippets, Diagram, Tools, Admin, etc.
+    pages/            # Dashboard, Snippets, Diagram, Tools, Admin, Vault, etc.
     components/       # Layout, LoginPage, RegisterPage
 data/                 # SQLite database (gitignored except directory)
 ```
@@ -72,6 +73,31 @@ The route used `req.user` but had no auth middleware. Now protected with `authen
 - **`Retry-After` header**: Now implemented in rate limiter
 - **Tool count**: README now says "52 Developer Tools"
 - **Vite dev port**: README now says `:3000` (matches `vite.config.ts`)
+
+### Port 5000 is restricted to NPM + NetBird only (UFW)
+
+Only `192.168.1.3` (Nginx Proxy Manager) and `100.64.0.0/10` (NetBird VPN) can reach port 5000. Direct LAN access is blocked.
+
+### Vault master key never persists (security)
+
+Master key exists only in component state — cleared on navigate away, logout, and tab close. Decrypted values same.
+
+## Security & Infrastructure
+
+### VM Hardening (172.10.10.83)
+
+- **UFW**: SSH (22) LAN only, App (5000) NPM + NetBird only, Docker networks allowed
+- **Fail2ban**: SSH jail (3 attempts → 1hr ban)
+- **Auto Updates**: `unattended-upgrades` enabled for security patches
+- **SSH Hardening**: `hardening.conf` (no root, max retries 3, login banner)
+
+### Password Vault (`/api/vault/*`)
+
+- **Encryption**: AES-256-GCM with scrypt key derivation (server-side)
+- **Rate Limiting**: 30 ops/min, 10 decrypts/min per IP
+- **Audit Logging**: All vault ops logged to container logs (`user, entry_id, entry_name, ip`)
+- **DB Table**: `vault_entries` (auto-created on startup in `database.js`)
+- **Security**: Master key never persisted — cleared on navigate away, logout, tab close
 
 ## Auth flow
 
@@ -109,7 +135,7 @@ Required: `JWT_SECRET`. All others have defaults.
 - SQLite with WAL mode and foreign keys enabled
 - Schema auto-created on startup in `server/src/config/database.js`
 - Inline migration pattern: `ALTER TABLE ... ADD COLUMN` wrapped in try/catch
-- Tables: `users`, `snippets`, `fragments`, `steps`, `categories`, `snippet_categories`, `api_keys`, `shares`, `diagrams`
+- Tables: `users`, `snippets`, `fragments`, `steps`, `categories`, `snippet_categories`, `api_keys`, `shares`, `diagrams`, `vault_entries`
 - Soft delete uses `expiry_date` column on `snippets` (not an `is_deleted` flag)
 
 ## Build / Docker notes
@@ -123,6 +149,14 @@ Required: `JWT_SECRET`. All others have defaults.
 ## draw.io proxy
 
 The Express server reverse-proxies draw.io at `/drawio/*`, `/js/*`, `/images/*`, `/mxgraph.php`. HTML responses are rewritten to inject branding CSS and remove draw.io references. The client's `DiagramPage.tsx` loads draw.io via iframe to `/drawio`.
+
+## draw.io proxy
+
+The Express server reverse-proxies draw.io at `/drawio/*`, `/js/*`, `/images/*`, `/mxgraph.php`. HTML responses are rewritten to inject branding CSS and remove draw.io references. The client's `DiagramPage.tsx` loads draw.io via iframe to `/drawio`.
+
+### Stencil loading fix (FIXED)
+
+`Editor.stencilPath = '/draw/stencils/'` is injected into `PreConfig.js` via server-side HTML rewriting. CDN library URLs in `DiagramPage.tsx` are rewritten to `/draw/libs/` to work behind the proxy.
 
 ## Tools
 
