@@ -151,7 +151,11 @@ function proxyDrawio(req, res) {
 // Simple proxy for draw.io static assets (no HTML rewriting)
 function proxyDrawioAsset(req, res) {
   const basePath = process.env.BASE_PATH || '';
-  const originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}`), '');
+  let originalUrl = req.originalUrl.replace(new RegExp(`^${basePath}`), '');
+  // Map /stencils/* to /draw/stencils/* on the draw.io container
+  if (originalUrl.startsWith('/stencils')) {
+    originalUrl = '/draw' + originalUrl;
+  }
   const options = {
     hostname: DRAWIO_HOST,
     port: DRAWIO_PORT,
@@ -221,6 +225,9 @@ app.all(`${basePath}/images/*`, proxyDrawioAsset);
 app.all(`${basePath}/mxgraph.php`, proxyDrawioAsset);
 // Proxy draw.io shape libraries (network, cisco, aws, azure, etc.)
 app.all(`${basePath}/libs/*`, proxyDrawioAsset);
+// Proxy draw.io stencils (shape libraries bundled with draw.io)
+app.all(`${basePath}/stencils/*`, proxyDrawioAsset);
+app.all(`${basePath}/stencils`, proxyDrawioAsset);
 // Proxy draw.io CDN libraries (jgraph.github.io/drawio-libs)
 app.all(`${basePath}/drawio-libs/*`, proxyDrawioLibs);
 
