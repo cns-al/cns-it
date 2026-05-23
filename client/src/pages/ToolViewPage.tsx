@@ -2128,7 +2128,7 @@ function VaultTool() {
                   </pre>
                   {entry.type !== 'ssh-key' && (
                     <button
-                      onClick={() => navigator.clipboard.writeText(entry.value) && toast.success('Copied to clipboard')}
+                      onClick={async () => { await navigator.clipboard.writeText(entry.value); toast.success('Copied to clipboard'); }}
                       className="mt-1 text-xs text-brand-600 hover:text-brand-700"
                     >
                       Copy full value
