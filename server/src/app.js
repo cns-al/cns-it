@@ -127,7 +127,9 @@ function proxyDrawio(req, res) {
         html = html.replace(/window\.DRAWIO_BASE_URL\s*=\s*['"][^'"]*['"]/g, "window.DRAWIO_BASE_URL = ''");
         // Replace remaining draw.io text references
         html = html.replace(/draw\.io/gi, 'CNS IT');
-        // Inject CSS before closing </head> tag
+        // Inject CSS and stencil path before main.js loads
+        const stencilFix = '<script>Editor=(Editor||{});Editor.stencilPath="/draw/stencils/";</script>';
+        html = html.replace('<script src="js/main.js">', stencilFix + '<script src="js/main.js">');
         if (html.includes('</head>')) {
           html = html.replace('</head>', CNS_DRAWIO_CSS + '</head>');
         } else if (html.includes('<head>')) {
