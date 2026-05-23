@@ -123,13 +123,16 @@ function proxyDrawio(req, res) {
         html = html.replace(/https:\/\/cdn\.draw\.io/g, '/draw');
         html = html.replace(/https:\/\/app\.diagrams\.net/g, '/draw');
         html = html.replace(/https:\/\/www\.draw\.io/g, '/draw');
+        // Override DRAWIO_BASE_URL and stencil path for local proxy
+        html = html.replace(/window\.DRAWIO_BASE_URL\s*=\s*['"][^'"]*['"]/g, "window.DRAWIO_BASE_URL = ''");
+        html = html.replace(/Editor\.stencilPath\s*=\s*['"][^'"]*['"]/g, "Editor.stencilPath = '/draw/stencils/'");
         // Replace remaining draw.io text references
         html = html.replace(/draw\.io/gi, 'CNS IT');
-        // Inject CSS before closing </head> tag
+        // Inject CSS and stencil path fix before closing </head> tag
         if (html.includes('</head>')) {
-          html = html.replace('</head>', CNS_DRAWIO_CSS + '</head>');
+          html = html.replace('</head>', CNS_DRAWIO_CSS + '<script>window.Editor=(window.Editor||{});Editor.stencilPath=\'/draw/stencils/\';</script>' + '</head>');
         } else if (html.includes('<head>')) {
-          html = html.replace('<head>', '<head>' + CNS_DRAWIO_CSS);
+          html = html.replace('<head>', '<head>' + CNS_DRAWIO_CSS + '<script>window.Editor=(window.Editor||{});Editor.stencilPath=\'/draw/stencils/\';</script>');
         }
         const body = Buffer.from(html, 'utf-8');
         headers['content-length'] = body.length;

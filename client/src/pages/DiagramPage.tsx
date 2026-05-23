@@ -263,6 +263,10 @@ export default function DiagramPage() {
         script.id = 'cnsit-lib-rewriter';
         script.textContent = `
           (function() {
+            // Override stencil path for local proxy
+            if (window.Editor) {
+              window.Editor.stencilPath = '/draw/stencils/';
+            }
             // Rewrite CDN/library URLs to local proxy
             function rewriteUrl(url) {
               if (typeof url !== 'string') return url;
@@ -270,6 +274,7 @@ export default function DiagramPage() {
               url = url.replace('https://cdn.draw.io', '/draw');
               url = url.replace('https://app.diagrams.net', '/draw');
               url = url.replace('https://www.draw.io', '/draw');
+              url = url.replace('http://localhost:8080/draw', '/draw');
               return url;
             }
             // Rewrite library URLs in all elements
