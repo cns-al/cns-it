@@ -97,7 +97,6 @@ const toolCategories = [
       { id: 'rsa', name: 'RSA Key Generator', description: 'Generate RSA key pairs' },
       { id: 'password-strength', name: 'Password Strength', description: 'Analyze password strength' },
       { id: 'encryption', name: 'Text Encryption', description: 'Encrypt/decrypt text (AES, DES, etc.)' },
-      { id: 'vault', name: 'SSH Key & Secret Vault', description: 'Encrypted storage for SSH keys, passwords, secrets' },
     ],
   },
   {

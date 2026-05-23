@@ -8,6 +8,7 @@ import snippetRoutes from './routes/snippetRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import shareRoutes from './routes/shareRoutes.js';
 import publicRoutes from './routes/publicRoutes.js';
+import vaultRoutes from './routes/vaultRoutes.js';
 import apiKeyRoutes from './routes/apiKeyRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import diagramRoutes from './routes/diagramRoutes.js';
@@ -235,6 +236,7 @@ app.use(`${basePath}/api/share`, authenticateToken, shareRoutes);
 app.use(`${basePath}/api/public/snippets`, publicRoutes);
 app.use(`${basePath}/api/admin`, authenticateToken, requireAdmin, adminRoutes);
 app.use(`${basePath}/api/diagrams`, authenticateToken, diagramRoutes);
+app.use(`${basePath}/api/vault`, vaultRoutes);
 
 // Proxy draw.io requests
 app.all(`${basePath}/drawio/*`, proxyDrawio);

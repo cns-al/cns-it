@@ -5,6 +5,7 @@ import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import DiagramPage from './pages/DiagramPage';
+import VaultPage from './pages/VaultPage';
 import SnippetsPage from './pages/SnippetsPage';
 import SnippetViewPage from './pages/SnippetViewPage';
 import ToolsPage from './pages/ToolsPage';
@@ -48,6 +49,7 @@ function App() {
         <Route index element={<DashboardPage />} />
         <Route path="diagram" element={<DiagramPage />} />
         <Route path="diagram/:id" element={<DiagramPage />} />
+        <Route path="vault" element={<VaultPage />} />
         <Route path="snippets" element={<SnippetsPage />} />
         <Route path="snippets/:id" element={<SnippetViewPage />} />
         <Route path="recycle" element={<RecycleBinPage />} />

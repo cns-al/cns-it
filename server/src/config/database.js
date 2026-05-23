@@ -117,6 +117,25 @@ export function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS vault_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'password',
+      host TEXT,
+      username TEXT,
+      encrypted_value TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      notes TEXT,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vault_user_id ON vault_entries(user_id);
+    CREATE INDEX IF NOT EXISTS idx_vault_type ON vault_entries(type);
+
     CREATE INDEX IF NOT EXISTS idx_snippets_user_id ON snippets(user_id);
     CREATE INDEX IF NOT EXISTS idx_snippets_user_expiry ON snippets(user_id, expiry_date);
     CREATE INDEX IF NOT EXISTS idx_snippets_is_public ON snippets(is_public);

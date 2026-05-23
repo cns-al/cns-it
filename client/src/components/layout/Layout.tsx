@@ -17,6 +17,8 @@ const navItems = [
     { icon: FolderOpen, label: 'Snippets', path: '/snippets' },
     { icon: Wrench, label: 'Dev Tools', path: '/tools' },
     { icon: ImageIcon, label: 'Diagram', path: '/diagram' },
+    { icon: Shield, label: 'Vault', path: '/vault' },
+    { icon: Shield, label: 'Vault', path: '/vault' },
   ]},
   { group: 'Other', items: [
     { icon: Trash2, label: 'Recycle Bin', path: '/recycle' },
