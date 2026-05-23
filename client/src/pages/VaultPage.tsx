@@ -1,9 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Eye, EyeOff, Copy, Plus, Search, Trash2, Edit2, X, Key, Server, User, Lock, FileKey } from 'lucide-react';
+import { Shield, Eye, EyeOff, Copy, Plus, Search, Trash2, Edit2, X, Key, Server, Lock, FileKey } from 'lucide-react';
 import { api } from '../api/client';
 import toast from 'react-hot-toast';
 
-const typeIcons = {
+type VaultType = 'ssh-key' | 'password' | 'server' | 'database' | 'api' | 'other';
+
+interface VaultEntry {
+  id: number;
+  name: string;
+  type: VaultType;
+  host?: string;
+  username?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const typeIcons: Record<VaultType, any> = {
   'ssh-key': Key,
   'password': Lock,
   'server': Server,
@@ -12,7 +25,7 @@ const typeIcons = {
   'other': Lock
 };
 
-const typeColors = {
+const typeColors: Record<VaultType, string> = {
   'ssh-key': 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30',
   'password': 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30',
   'server': 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
@@ -22,17 +35,17 @@ const typeColors = {
 };
 
 export default function VaultPage() {
-  const [entries, setEntries] = useState([]);
+  const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [masterKey, setMasterKey] = useState('');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [decryptedValues, setDecryptedValues] = useState({});
-  const [visibleValues, setVisibleValues] = useState({});
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [decryptedValues, setDecryptedValues] = useState<Record<number, string>>({});
+  const [visibleValues, setVisibleValues] = useState<Record<number, boolean>>({});
 
   const [formData, setFormData] = useState({
-    name: '', type: 'password', host: '', username: '', value: '', notes: ''
+    name: '', type: 'password' as VaultType, host: '', username: '', value: '', notes: ''
   });
 
   const fetchEntries = useCallback(async () => {
@@ -58,19 +71,19 @@ export default function VaultPage() {
     } catch { toast.error('Search failed'); }
   };
 
-  const handleDecrypt = async (id) => {
+  const handleDecrypt = async (id: number) => {
     if (!masterKey.trim()) { toast.error('Enter your master key first'); return; }
     try {
       const res = await api.get(`/vault/${id}/decrypt?masterKey=${encodeURIComponent(masterKey)}`);
       const data = await res.json();
       setDecryptedValues(prev => ({ ...prev, [id]: data.value }));
       toast.success('Decrypted');
-    } catch (err) {
+    } catch (err: any) {
       toast.error(err.message || 'Decryption failed - wrong master key');
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!masterKey.trim()) { toast.error('Enter your master key first'); return; }
     if (!formData.name.trim() || !formData.value.trim()) { toast.error('Name and value are required'); return; }
@@ -86,12 +99,12 @@ export default function VaultPage() {
       setEditingId(null);
       setShowForm(false);
       fetchEntries();
-    } catch (err) {
+    } catch (err: any) {
       toast.error(err.message || 'Save failed');
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('Delete this entry? This cannot be undone.')) return;
     try {
       await api.delete(`/vault/${id}`);
@@ -100,7 +113,7 @@ export default function VaultPage() {
     } catch { toast.error('Delete failed'); }
   };
 
-  const handleEdit = (entry) => {
+  const handleEdit = (entry: VaultEntry) => {
     setEditingId(entry.id);
     setFormData({
       name: entry.name, type: entry.type, host: entry.host || '',
@@ -109,14 +122,9 @@ export default function VaultPage() {
     setShowForm(true);
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
-  };
-
-  const TypeIcon = ({ type }) => {
-    const Icon = typeIcons[type] || typeIcons.other;
-    return <Icon className={`h-4 w-4 ${typeColors[type]?.split(' ')[0] || 'text-gray-600'}`} />;
   };
 
   return (
@@ -238,7 +246,7 @@ export default function VaultPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">Type</label>
-                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value }))}
+                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as VaultType }))}
                     className="input text-sm">
                     <option value="password">Password</option>
                     <option value="ssh-key">SSH Key</option>
